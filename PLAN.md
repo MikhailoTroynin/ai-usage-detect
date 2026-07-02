@@ -24,9 +24,9 @@
 
 ## Чекліст MVP
 
-1. **Backend-проксі для LLM-викликів**
-   Мінімальна серверна функція (рекомендовано: Supabase Edge Function, TS/Deno) з ендпоінтами `POST /humanize` та `POST /alternatives`, яка тримає `ANTHROPIC_API_KEY` на сервері. Ключ ніколи не потрапляє в клієнтський бандл Expo.
-   *Блокер: потрібен від користувача Supabase-проєкт (або інший хостинг) і Anthropic API-ключ.*
+1. ~~**Backend-проксі для LLM-викликів**~~ ✅ Зроблено
+   Реалізовано як Supabase Edge Functions (TS/Deno) у `supabase/functions/`: `POST /humanize` та `POST /alternatives`, обидва тримають `ANTHROPIC_API_KEY` виключно на сервері (`Deno.env.get`), ключ ніколи не потрапляє в клієнтський бандл Expo. Дивись розділ "Backend proxy" в `README.md` для локального запуску й деплою.
+   *Примітка: функції ще без auth (`verify_jwt = false`, auth відкладено за планом) і без деплою на реальний Supabase-проєкт — це потребує `supabase link` з project ref користувача.*
 
 2. **Layer 1 — LLM humanize endpoint**
    Ендпоінт приймає `{text, mode, tone, style}` (Light/Medium/Aggressive/Ninja; 13 тонів; 5–6 стилів) і викликає Claude із системним промптом, налаштованим на ін'єкцію перплексії/сплесковості під обраний режим. Повертає переписаний текст.

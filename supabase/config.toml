@@ -1,0 +1,7 @@
+project_id = "ai-usage-detect"
+
+[functions.humanize]
+verify_jwt = false
+
+[functions.alternatives]
+verify_jwt = false
