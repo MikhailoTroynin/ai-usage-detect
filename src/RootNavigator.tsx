@@ -5,7 +5,7 @@ import { useTheme } from './theme/ThemeContext';
 import { TabBar } from './components/TabBar';
 import { ScreenName, EditorState, HumanizeResult, HumanizeStage } from './navigation/types';
 import { SAMPLE_INPUT } from './data/content';
-import { ApiError, humanize } from './lib/api';
+import { ApiError, detect, humanize } from './lib/api';
 
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
@@ -38,9 +38,19 @@ export function RootNavigator() {
   const runHumanize = () => {
     setHumanizeStage('pending');
     setHumanizeError(null);
-    humanize({ text: editor.input, mode: editor.mode, tone: editor.tone, style: editor.style })
-      .then(text => {
-        setResult({ text });
+    const originalInput = editor.input;
+    humanize({ text: originalInput, mode: editor.mode, tone: editor.tone, style: editor.style })
+      .then(async text => {
+        // Scoring is a nice-to-have on top of the rewrite: if /detect is flaky or
+        // down, still surface the humanized text rather than throwing it away and
+        // forcing a full (expensive) re-humanize just to retry the score lookup.
+        const [beforeRes, afterRes] = await Promise.allSettled([detect(originalInput), detect(text)]);
+        const before = beforeRes.status === 'fulfilled' ? beforeRes.value : null;
+        const after = afterRes.status === 'fulfilled' ? afterRes.value : null;
+        const sentences = after && after.sentences.length > 0
+          ? after.sentences.map((s, i) => ({ id: `s${i}`, text: s.text, risk: s.risk, score: s.score, alts: null }))
+          : [{ id: 's0', text, risk: after?.risk ?? 'green', score: after?.overallScore ?? 0, alts: null }];
+        setResult({ text, beforeScore: before?.overallScore ?? 0, afterScore: after?.overallScore ?? 0, sentences });
         setHumanizeStage('done');
       })
       .catch(err => {
@@ -62,7 +72,7 @@ export function RootNavigator() {
     home:       <Home go={go} />,
     humanize:   <Editor go={go} state={editor} set={setEditorPatch} onSubmit={submitHumanize} />,
     processing: <Processing go={go} stage={humanizeStage} error={humanizeError} onRetry={runHumanize} onCancel={() => go('humanize')} />,
-    result:     <Result go={go} />,
+    result:     <Result go={go} result={result} />,
     detector:   <Detector go={go} />,
     stats:      <Metrics go={go} />,
     pricing:    <Pricing go={go} />,

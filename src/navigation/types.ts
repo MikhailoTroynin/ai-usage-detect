@@ -1,3 +1,5 @@
+import { Risk } from '../data/content';
+
 export type ScreenName =
   | 'onboarding'
   | 'home'
@@ -16,8 +18,19 @@ export interface EditorState {
   style: string;
 }
 
+export interface HumanizeResultSentence {
+  id: string;
+  text: string;
+  risk: Risk;
+  score: number;
+  alts?: string[] | null;
+}
+
 export interface HumanizeResult {
   text: string;
+  beforeScore: number;
+  afterScore: number;
+  sentences: HumanizeResultSentence[];
 }
 
 export type HumanizeStage = 'idle' | 'pending' | 'done' | 'error';

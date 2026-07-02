@@ -45,8 +45,10 @@
 
    *Примітка: `Result.tsx` поки що показує мокові речення (`RESULT_SENTENCES`) — реальний текст з відповіді вже зберігається в стані `RootNavigator`, але підключення до Result-екрана заплановане в пункті 7.*
 
-7. **Wire Result**
-   `src/screens/Result.tsx` — реальний переписаний текст, підсвітка речень за реальними оцінками детектора, робоча функція "Альтернативи" (LLM-виклик при temperature 1.0, 3 варіанти на речення).
+7. ~~**Wire Result**~~ ✅ Зроблено
+   `src/lib/api.ts` отримав спільний `post()`-хелпер і нові функції `detect()` (`POST /detect`) та `alternatives()` (`POST /alternatives`, `temperature 1.0`). `RootNavigator.tsx` після успішного `/humanize` паралельно (`Promise.allSettled`) проганяє оригінальний і переписаний текст через `/detect`, щоб отримати реальні `beforeScore`/`afterScore` і посентенсні оцінки (`HumanizeResult.sentences` — новий тип у `navigation/types.ts`); якщо `/detect` впаде, гуманізований текст усе одно показується (без фейлу всього флоу й без зайвого повторного дорогого `/humanize`-виклику). `Result.tsx` тепер рендерить реальний текст і реальну підсвітку речень за ризиком, а тап по червоному/жовтому реченню ліниво тягне `alternatives()` (3 варіанти, спінер під час завантаження, retry при помилці) замість статичних мокових альтернатив; мокові `RESULT_SENTENCES` лишились як фолбек для демо-переходу з Home → History. Перевірено `tsc --noEmit` і `expo export --platform web` (бандл збирається без помилок).
+
+   *Примітка: картка "Detectors" (GPTZero/Turnitin/...) на Result лишається мокованою — реальні інтеграції свідомо відкладені (див. розділ вище).*
 
 8. **Wire Detector + Metrics**
    `src/screens/Detector.tsx` — довільний вставлений текст проганяється через евристичний детектор. `src/screens/Metrics.tsx` — реальні числа FRE/FKGL з readability engine.
