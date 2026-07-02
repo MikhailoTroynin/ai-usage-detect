@@ -50,8 +50,8 @@
 
    *Примітка: картка "Detectors" (GPTZero/Turnitin/...) на Result лишається мокованою — реальні інтеграції свідомо відкладені (див. розділ вище).*
 
-8. **Wire Detector + Metrics**
-   `src/screens/Detector.tsx` — довільний вставлений текст проганяється через евристичний детектор. `src/screens/Metrics.tsx` — реальні числа FRE/FKGL з readability engine.
+8. ~~**Wire Detector + Metrics**~~ ✅ Зроблено
+   `src/screens/Detector.tsx` тепер викликає реальний `detect()` для довільно вставленого тексту, показує loading/error стани, загальний heuristic AI-score і реальну sentence-level підсвітку з відповіді `/detect`. `src/screens/Metrics.tsx` рахує live FRE/FKGL, середню довжину речення, склади на слово й sentence-length distribution через `analyzeReadability()` для останнього humanize-результату (або sample fallback, якщо результату ще немає).
 
 9. **Конфіг та обробка помилок**
    `EXPO_PUBLIC_*` змінна для URL бекенду (без секретів у клієнті), loading/error/timeout стани на Editor/Processing/Result/Detector замість припущення, що мок завжди успішний.

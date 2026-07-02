@@ -7,8 +7,9 @@ import { Chip } from '../components/Chip';
 import { Gauge } from '../components/Gauge';
 import { Icon } from '../components/Icon';
 import { useTheme } from '../theme/ThemeContext';
-import { DETECTORS, READABILITY } from '../data/content';
-import { ScreenProps } from '../navigation/types';
+import { DETECTORS, SAMPLE_INPUT } from '../data/content';
+import { HumanizeResult, ScreenProps } from '../navigation/types';
+import { analyzeReadability } from '../utils/readability';
 
 function StatTile({ label, value, unit, hint, good }: { label: string; value: string | number; unit?: string; hint?: string; good?: boolean }) {
   const { theme } = useTheme();
@@ -29,36 +30,52 @@ function StatTile({ label, value, unit, hint, good }: { label: string; value: st
   );
 }
 
-export function Metrics({ go }: ScreenProps) {
+interface MetricsProps extends ScreenProps {
+  result: HumanizeResult | null;
+}
+
+function getSentenceWordCounts(text: string): number[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map(sentence => sentence.trim().split(/\s+/).filter(Boolean).length)
+    .filter(Boolean);
+}
+
+export function Metrics({ result }: MetricsProps) {
   const { theme } = useTheme();
-  const dist = [9, 14, 22, 18, 11, 16, 7, 19, 12];
-  const maxD = Math.max(...dist);
+  const sourceText = result?.text ?? SAMPLE_INPUT;
+  const readability = analyzeReadability(sourceText);
+  const dist = getSentenceWordCounts(sourceText);
+  const maxD = Math.max(...dist, 1);
+  const fre = Math.max(0, Math.min(100, readability.fleschReadingEase));
+  const readingLabel = readability.fleschReadingEase >= 60 ? 'Easy to read' : readability.fleschReadingEase >= 30 ? 'Moderately difficult' : 'Difficult to read';
+  const targetMet = readability.fleschReadingEase >= 60;
   return (
     <Screen>
       <Header title="Metrics" sub="Readability & detection health of your last run." />
       <View style={{ paddingHorizontal: 20, gap: 14 }}>
         <Card pad={18}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <Gauge value={READABILITY.fre} size={112} thickness={11} color={theme.accent} label={String(READABILITY.fre)} sub="Flesch ease" />
+            <Gauge value={fre} size={112} thickness={11} color={targetMet ? theme.accent : theme.riskAmber} label={String(readability.fleschReadingEase)} sub="Flesch ease" />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 16.5, fontWeight: '700', letterSpacing: -0.3, color: theme.text }}>Easy to read</Text>
+              <Text style={{ fontSize: 16.5, fontWeight: '700', letterSpacing: -0.3, color: theme.text }}>{readingLabel}</Text>
               <Text style={{ fontSize: 13.5, color: theme.textMuted, marginTop: 5, lineHeight: 19 }}>
-                Above the 60-point target. Roughly an 8th-grade reading level.
+                {targetMet ? 'Above' : 'Below'} the 60-point target. Current Flesch-Kincaid grade is {readability.fleschKincaidGrade}.
               </Text>
-              <Chip color={theme.riskGreen} bg={theme.riskGreenBg} style={{ marginTop: 10 }} icon={<Icon name="check" size={12} sw={2.6} stroke={theme.riskGreen} />}>
-                Meets quality bar
+              <Chip color={targetMet ? theme.riskGreen : theme.riskAmber} bg={targetMet ? theme.riskGreenBg : theme.riskAmberBg} style={{ marginTop: 10 }} icon={targetMet ? <Icon name="check" size={12} sw={2.6} stroke={theme.riskGreen} /> : undefined}>
+                {targetMet ? 'Meets quality bar' : 'Needs simplification'}
               </Chip>
             </View>
           </View>
         </Card>
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <StatTile label="Grade level" value={READABILITY.fkgl} hint="Flesch-Kincaid" good />
-          <StatTile label="Avg. sentence" value={READABILITY.avgSentence} unit="w" hint="High burstiness" good />
+          <StatTile label="Grade level" value={readability.fleschKincaidGrade} hint="Flesch-Kincaid" good={readability.fleschKincaidGrade <= 9} />
+          <StatTile label="Avg. sentence" value={readability.avgWordsPerSentence} unit="w" hint={`${readability.sentenceCount} sentence${readability.sentenceCount === 1 ? '' : 's'}`} good={readability.avgWordsPerSentence <= 20} />
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <StatTile label="Avg. syllables" value={READABILITY.avgSyllables} hint="per word" />
-          <StatTile label="Passive voice" value={READABILITY.passive} unit="%" hint="Low — good" good />
+          <StatTile label="Avg. syllables" value={readability.avgSyllablesPerWord} hint="per word" />
+          <StatTile label="Words analyzed" value={readability.wordCount} hint="live text" good />
         </View>
 
         <Card pad={16}>
