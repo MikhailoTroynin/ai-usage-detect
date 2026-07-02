@@ -1,5 +1,9 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# Python (ai_usage_detect)
+__pycache__/
+*.pyc
+
 # dependencies
 node_modules/
 
