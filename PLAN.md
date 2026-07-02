@@ -78,8 +78,10 @@
 11. **PR і мердж гілки**
     Створити PR `claude/step-10-bwtlem` → `main` з описом виправлених у QA багів (temperature/400, markdown-фенс у JSON). Опційно — увімкнути стеження за CI/рев'ю-коментарями на цьому PR.
 
-12. **Реальний деплой Supabase-проєкту**
-    Блокується project-ref від користувача. Кроки: `supabase link --project-ref <ref>` → `supabase secrets set ANTHROPIC_API_KEY=...` (**новий**, відкликаний-і-перевиданий ключ — старий вважати скомпрометованим) → `supabase functions deploy humanize alternatives detect` → виставити клієнтський `EXPO_PUBLIC_API_URL` на задеплоєний Functions-URL замість локального дефолту.
+12. **Реальний деплой Supabase-проєкту** — 🟡 автоматизація готова, живий деплой блокується користувачем
+    Кроки деплою зведено в один ідемпотентний скрипт `supabase/deploy.sh <project-ref>`: `supabase link` → `supabase secrets set ANTHROPIC_API_KEY=...` (читає ключ із gitignored `supabase/.env.local`) → `supabase functions deploy humanize alternatives detect`, і в кінці друкує потрібний клієнтський `EXPO_PUBLIC_API_URL=https://<ref>.supabase.co/functions/v1`. README оновлено (one-shot + ручні кроки).
+
+    **Живий деплой не виконано з цього середовища й не може бути:** потрібні (а) project-ref користувача, (б) **новий**, відкликаний-і-перевиданий `ANTHROPIC_API_KEY` (старий вважати скомпрометованим), (в) `supabase` CLI, автентифікований проти реального проєкту. У цьому ефемерному контейнері немає ні `supabase`/`deno`, ні доступу до Supabase-проєкту користувача. Щоб завершити пункт: локально заповнити `supabase/.env.local` новим ключем і запустити `supabase/deploy.sh <project-ref>`.
 
 13. **Auth перед публічним відкриттям**
     Функції зараз `verify_jwt = false` (навмисно, MVP без auth). Перед будь-яким публічним доступом: увімкнути Supabase Auth, виставити `verify_jwt = true` для `humanize`/`alternatives`/`detect`, прив'язати до auth-сесії в клієнті (`src/lib/api.ts`).

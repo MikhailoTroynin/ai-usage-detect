@@ -57,11 +57,26 @@ npx supabase functions serve --env-file supabase/.env.local
 Deploy:
 
 ```bash
+# One-shot: link + set the ANTHROPIC_API_KEY secret + deploy all three functions.
+# Reads the (gitignored) key from supabase/.env.local; must run locally by the
+# project owner with the supabase CLI logged in.
+supabase/deploy.sh <your-project-ref>
+```
+
+Or run the equivalent steps by hand:
+
+```bash
 npx supabase link --project-ref <your-project-ref>
 npx supabase secrets set --env-file supabase/.env.local
 npx supabase functions deploy humanize
 npx supabase functions deploy alternatives
 npx supabase functions deploy detect
+```
+
+After deploy, point the Expo client at the deployed Functions URL:
+
+```bash
+EXPO_PUBLIC_API_URL=https://<your-project-ref>.supabase.co/functions/v1
 ```
 
 Never commit `supabase/.env.local` or paste API keys into chat/commits — the `.env*.local` pattern is already gitignored. If a key is ever pasted somewhere it could be logged (chat, CI logs, issue text), treat it as compromised and rotate it in the Anthropic Console.
