@@ -71,4 +71,26 @@
 
 ## Наступний крок
 
-Усі 10 пунктів MVP-чекліста виконані. Для реального деплою залишається (свідомо відкладено, див. розділи вище): виставити `ANTHROPIC_API_KEY` серверним секретом у Supabase (`supabase secrets set`) і задеплоїти функції, додати auth перед публічним відкриттям (`verify_jwt = true`), потім — фази auth/білінгу/реальних детекторів.
+Усі 10 пунктів MVP-чекліста виконані. Далі — розгортання і фази поза MVP.
+
+## Чекліст після-MVP
+
+11. **PR і мердж гілки**
+    Створити PR `claude/step-10-bwtlem` → `main` з описом виправлених у QA багів (temperature/400, markdown-фенс у JSON). Опційно — увімкнути стеження за CI/рев'ю-коментарями на цьому PR.
+
+12. **Реальний деплой Supabase-проєкту**
+    Блокується project-ref від користувача. Кроки: `supabase link --project-ref <ref>` → `supabase secrets set ANTHROPIC_API_KEY=...` (**новий**, відкликаний-і-перевиданий ключ — старий вважати скомпрометованим) → `supabase functions deploy humanize alternatives detect` → виставити клієнтський `EXPO_PUBLIC_API_URL` на задеплоєний Functions-URL замість локального дефолту.
+
+13. **Auth перед публічним відкриттям**
+    Функції зараз `verify_jwt = false` (навмисно, MVP без auth). Перед будь-яким публічним доступом: увімкнути Supabase Auth, виставити `verify_jwt = true` для `humanize`/`alternatives`/`detect`, прив'язати до auth-сесії в клієнті (`src/lib/api.ts`).
+
+14. **Кредити/ліміти використання**
+    Без auth і білінгу зараз немає захисту від зловживання дорогим `/humanize`-викликом. Мінімум — rate-limit per-IP/per-user на Edge Function рівні, до повного білінгу.
+
+## Наступні фази (поза MVP, з BRD)
+
+- **Реальні AI-детектори** (GPTZero/Turnitin/Copyleaks/Originality.ai) замість евристичного `heuristicDetector` — головний фактор довіри продукту.
+- **Білінг** — Stripe Sync Engine / RevenueCat, кредитна модель.
+- **Layer 3 pipeline** — multi-model chaining для агресивніших режимів гуманізації.
+- **Чанкінг** текстів >2500 слів з ітеративним auto-refinement.
+- **Веб-воронка / programmatic SEO** з BRD (GTM-вимоги) — залежить від вибору стеку (Next.js vs розширення Expo-web).
