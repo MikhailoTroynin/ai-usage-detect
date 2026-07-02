@@ -34,8 +34,8 @@
 3. ~~**Layer 2 — regex AI-slop post-processing**~~ ✅ Зроблено
    `supabase/functions/_shared/aiSlopCleanup.ts` — чистий TS-модуль зі списком маркерів (delve, tapestry, crucial, vibrant, nestled, underscore, furthermore, moreover, in conclusion, boasts, testament to, realm, elevate, leverage, robust, seamless, unlock, unleash, game-changer, cutting-edge, ever-evolving тощо) і таблицею синонімічних замін (кілька варіантів на маркер, обирається випадково, щоб повтори маркера не схлопувались в один і той самий патерн). Заміна регістро-незалежна (`\b`-межі слів), зберігає регістр оригіналу (Title Case / UPPERCASE). `POST /humanize` тепер прогонює відповідь Claude через `cleanAiSlop()` перед поверненням клієнту. Юніт-тести в `aiSlopCleanup.test.ts` (Deno test runner).
 
-4. **Евристичний детектор ШІ**
-   GPTZero/Turnitin потребують окремих платних ключів, яких поки немає — робимо власну евристичну sentence-level оцінку (red/yellow/green) за інтерфейсом, сумісним з майбутньою підміною на реальний GPTZero.
+4. ~~**Евристичний детектор ШІ**~~ ✅ Зроблено
+   `supabase/functions/_shared/aiDetector.ts` — чиста TS-реалізація без зовнішніх API/ключів, схована за інтерфейсом `AiDetector` (`detect(text): Promise<DetectionResult>`), щоб пізніше підмінити на реальний GPTZero без зміни викликаючого коду. Оцінка sentence-level (`red`/`amber`/`green`) за трьома сигналами: збіги зі списком типових "AI"-фраз і слів (as an AI language model, delve, tapestry, furthermore, moreover, paradigm shift тощо), повторювані початки речень і низька лексична розмаїтість усередині речення — зважена сума (0.7/0.15/0.15, як у видаленому Python-прототипі за духом, але per-sentence і в TS, з вагою, підібраною так, щоб 2+ маркери в одному реченні самі по собі давали "red"). Новий `POST /detect` (`supabase/functions/detect/index.ts`) валідує вхідний `text` і повертає `{ overallScore, risk, sentences }`. Юніт-тести в `aiDetector.test.ts` (Deno test runner).
 
 5. **Readability engine (FRE/FKGL)**
    Чиста TS-реалізація формул Flesch Reading Ease і Flesch-Kincaid Grade Level (підрахунок складів/речень/слів), без зовнішніх API. Спільний util для Metrics-екрана і бекенду.

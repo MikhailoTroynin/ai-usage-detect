@@ -32,6 +32,8 @@ npm run start   # then press i / a / w, or scan the QR code with Expo Go
 
 `POST /humanize` and `POST /alternatives` are minimal Supabase Edge Functions (Deno/TS) that call the Anthropic API. They keep `ANTHROPIC_API_KEY` server-side only — it is never bundled into the Expo client.
 
+`POST /detect` scores text with a heuristic AI-detector (stock phrases, repeated sentence openers, low lexical variety) — no external API or key required. It returns sentence-level `red`/`amber`/`green` risk plus an overall score, behind an `AiDetector` interface designed to be swapped for a real GPTZero/Turnitin integration later without changing callers.
+
 Local development:
 
 ```bash
@@ -47,6 +49,7 @@ npx supabase link --project-ref <your-project-ref>
 npx supabase secrets set --env-file supabase/.env.local
 npx supabase functions deploy humanize
 npx supabase functions deploy alternatives
+npx supabase functions deploy detect
 ```
 
 Never commit `supabase/.env.local` or paste API keys into chat/commits — the `.env*.local` pattern is already gitignored. If a key is ever pasted somewhere it could be logged (chat, CI logs, issue text), treat it as compromised and rotate it in the Anthropic Console.
