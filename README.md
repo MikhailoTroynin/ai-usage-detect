@@ -28,6 +28,31 @@ npm install
 npm run start   # then press i / a / w, or scan the QR code with Expo Go
 ```
 
+### Backend proxy (`supabase/functions/`)
+
+`POST /humanize` and `POST /alternatives` are minimal Supabase Edge Functions (Deno/TS) that call the Anthropic API. They keep `ANTHROPIC_API_KEY` server-side only — it is never bundled into the Expo client.
+
+Local development:
+
+```bash
+cp supabase/.env.example supabase/.env.local   # fill in ANTHROPIC_API_KEY, keep this file local-only
+npx supabase start
+npx supabase functions serve --env-file supabase/.env.local
+```
+
+Deploy:
+
+```bash
+npx supabase link --project-ref <your-project-ref>
+npx supabase secrets set --env-file supabase/.env.local
+npx supabase functions deploy humanize
+npx supabase functions deploy alternatives
+```
+
+Never commit `supabase/.env.local` or paste API keys into chat/commits — the `.env*.local` pattern is already gitignored. If a key is ever pasted somewhere it could be logged (chat, CI logs, issue text), treat it as compromised and rotate it in the Anthropic Console.
+
+These functions currently accept unauthenticated requests (`verify_jwt = false`) since auth is deferred per `PLAN.md`; add auth before any public deployment.
+
 ### Design source
 
 `design-handoff/` contains the original Claude Design HTML/JSX prototype and BRD this app was built from, kept for reference.
