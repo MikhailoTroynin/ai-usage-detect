@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { AuthError, authErrorResponse, requireUser } from "../_shared/auth.ts";
 import { AnthropicConfigError, callClaude } from "../_shared/anthropic.ts";
 
 // Minimal proxy for item 1 of PLAN.md: keeps ANTHROPIC_API_KEY server-side.
@@ -24,6 +25,13 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  try {
+    await requireUser(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   let body: { sentence?: unknown; count?: unknown };

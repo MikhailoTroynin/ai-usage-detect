@@ -1,4 +1,5 @@
 import { Risk } from '../data/content';
+import { getAccessToken, refreshSession, signOut } from './supabase';
 
 // Base URL for the Supabase Edge Functions backend (see README.md → "Backend proxy").
 // Defaults to the local `supabase functions serve` address for dev; override via
@@ -25,16 +26,19 @@ export const apiConfig = {
 
 export class ApiError extends Error {}
 export class ApiTimeoutError extends ApiError {}
+export class ApiAuthError extends ApiError {}
 
-async function post<T>(path: string, payload: unknown): Promise<T> {
+async function sendRequest(path: string, payload: unknown): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), apiConfig.timeoutMs);
-  let res: Response;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    res = await fetch(`${apiConfig.baseUrl}${path}`, {
+    return await fetch(`${apiConfig.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -46,12 +50,30 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function post<T>(path: string, payload: unknown): Promise<T> {
+  let res = await sendRequest(path, payload);
+
+  // The access token may have expired mid-session: try one silent refresh and
+  // retry before surfacing an auth error that would bounce the user to sign-in.
+  if (res.status === 401 && (await refreshSession())) {
+    res = await sendRequest(path, payload);
+  }
 
   let body: Record<string, unknown> | null = null;
   try {
     body = await res.json();
   } catch {
     // fall through to status-based error below
+  }
+
+  if (res.status === 401) {
+    // Refresh already failed (or there was nothing to refresh): drop the session
+    // so the app returns to the sign-in screen instead of retrying forever.
+    signOut();
+    const message = typeof body?.error === 'string' ? body.error : 'Please sign in again.';
+    throw new ApiAuthError(message);
   }
 
   if (!res.ok) {
