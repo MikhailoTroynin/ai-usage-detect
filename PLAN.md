@@ -56,9 +56,19 @@
 9. ~~**Конфіг та обробка помилок**~~ ✅ Зроблено
    `src/lib/api.ts` централізував клієнтську конфігурацію backend-проксі: `EXPO_PUBLIC_API_URL` нормалізується з локальним дефолтом Supabase Functions, додано `EXPO_PUBLIC_API_TIMEOUT_MS` з дефолтом 45 секунд, `AbortController`-timeout і окремий `ApiTimeoutError`. README документує лише публічні Expo-змінні й явно нагадує не класти секрети в клієнт. Result тепер синхронізує локальний стан речень після повторного запуску й скидає loading/error стан альтернатив, щоб не показувати застарілі дані після нового humanize-результату.
 
-10. **Наскрізна ручна QA**
-    Прогнати цикл Editor → Processing → Result → Metrics → Detector (web + Expo Go), перевірити відсутність API-ключів у клієнтському трафіку/бандлі.
+10. ~~**Наскрізна ручна QA**~~ ✅ Зроблено
+    Прогнали повний цикл на **живих даних** проти реального Anthropic API (`claude-sonnet-5`): `/humanize` для всіх 4 режимів (light/medium/aggressive/ninja) → `cleanAiSlop()` → `/detect` до/після, `/alternatives`, і readability-метрики. Детектор падає з `red` (overall 70) до `green` (0–12) після гуманізації, усі AI-slop маркери прибрані, `/alternatives` повертає 3 варіанти, метрики рахуються (FRE/FKGL). Клієнт: `tsc --noEmit` чистий, `expo export --platform web` збирається.
+
+    **QA знайшла і виправила два реальні баги, що повністю ламали backend:**
+    - `_shared/anthropic.ts` завжди слав `temperature`, але `claude-sonnet-5` (як і сімейство Opus 4.7/4.8) **відхиляє `temperature`/`top_p`/`top_k` з HTTP 400** ("temperature is deprecated for this model"). Через це **кожен** виклик `/humanize` і `/alternatives` падав у 502. Прибрали `temperature` з тіла запиту (стилем керуємо через системний промпт) і `temperature: 1.0` з `/alternatives`.
+    - `claude-sonnet-5` обгортає JSON-відповідь у markdown-фенс (` ```json … ``` `) навіть коли промпт просить "only a JSON array". `/alternatives` робив `JSON.parse(raw)` напряму → 502. Додали `stripCodeFence()` перед парсингом. (Раніше цей баг був замаскований, бо 400 від temperature падав першим.)
+
+    **Перевірка відсутності секретів у клієнті:** у зібраному `dist/` немає ні `sk-ant`, ні `ANTHROPIC_API_KEY`, ні прямих викликів `api.anthropic.com`/`x-api-key` — клієнт спілкується виключно з Supabase-проксі. Ключ живе лише в `supabase/.env.local` (gitignored) і не потрапляє в git.
+
+    *Обмеження середовища: Expo Go на реальному пристрої не ганяли (headless-контейнер) — прогін виконано через web-логіку/бекенд. Deno-юніт-тести (`*.test.ts`) не запускали окремо (deno-бінарник недоступний через блокування github-завантажень проксі), але всі чисті TS-модулі (`cleanAiSlop`, `heuristicDetector`, `analyzeReadability`, `buildHumanizeSystemPrompt`) відпрацювали в живому E2E-прогоні.*
+
+    *Примітка щодо tsconfig: `supabase/functions` винесено в `exclude`, бо це Deno-код (глобал `Deno`, JSR- та `.ts`-імпорти), який має перевірятись `deno check`, а не Expo/Node `tsc`; тепер `tsc --noEmit` для клієнта чистий.*
 
 ## Наступний крок
 
-Задача №1 блокує решту: потрібні від користувача Supabase-проєкт (або підтверджена альтернатива) і Anthropic API-ключ, виставлений як серверний секрет.
+Усі 10 пунктів MVP-чекліста виконані. Для реального деплою залишається (свідомо відкладено, див. розділи вище): виставити `ANTHROPIC_API_KEY` серверним секретом у Supabase (`supabase secrets set`) і задеплоїти функції, додати auth перед публічним відкриттям (`verify_jwt = true`), потім — фази auth/білінгу/реальних детекторів.
