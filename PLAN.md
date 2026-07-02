@@ -81,6 +81,8 @@
 12. **Реальний деплой Supabase-проєкту** — 🟡 автоматизація готова, живий деплой блокується користувачем
     Кроки деплою зведено в один ідемпотентний скрипт `supabase/deploy.sh <project-ref>`: `supabase link` → `supabase secrets set ANTHROPIC_API_KEY=...` (читає ключ із gitignored `supabase/.env.local`) → `supabase functions deploy humanize alternatives detect`, і в кінці друкує потрібний клієнтський `EXPO_PUBLIC_API_URL=https://<ref>.supabase.co/functions/v1`. README оновлено (one-shot + ручні кроки).
 
+    Для користувача **без власного комп'ютера (тільки браузер)** додано GitHub Actions workflow `.github/workflows/deploy-supabase.yml`: GitHub сам ставить `supabase` CLI, кладе `ANTHROPIC_API_KEY` у секрети проєкту й деплоїть три функції — запуск кнопкою **Run workflow** або автоматично при зміні коду функцій у `main`. Потрібні три GitHub Secrets (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `ANTHROPIC_API_KEY`), які вводяться у сейф GitHub, а не в чат. Клік-за-кліком інструкція українською — `supabase/DEPLOY-UA.md`.
+
     **Живий деплой не виконано з цього середовища й не може бути:** потрібні (а) project-ref користувача, (б) **новий**, відкликаний-і-перевиданий `ANTHROPIC_API_KEY` (старий вважати скомпрометованим), (в) `supabase` CLI, автентифікований проти реального проєкту. У цьому ефемерному контейнері немає ні `supabase`/`deno`, ні доступу до Supabase-проєкту користувача. Щоб завершити пункт: локально заповнити `supabase/.env.local` новим ключем і запустити `supabase/deploy.sh <project-ref>`.
 
 13. **Auth перед публічним відкриттям**

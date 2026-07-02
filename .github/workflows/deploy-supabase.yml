@@ -1,0 +1,65 @@
+name: Deploy Supabase Functions
+
+# PLAN.md крок 12 — автоматичний деплой Edge Functions на Supabase.
+#
+# GitHub сам грає роль "вантажника": ставить supabase CLI, кладе ключ
+# ANTHROPIC_API_KEY у секрети проєкту й деплоїть humanize/alternatives/detect.
+#
+# Запускається:
+#   - вручну (кнопка "Run workflow" на вкладці Actions), АБО
+#   - автоматично при зміні коду функцій у гілці main.
+#
+# Потрібні GitHub Secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_ACCESS_TOKEN  — Personal access token із supabase.com (Account -> Access Tokens)
+#   SUPABASE_PROJECT_ID    — project-ref вашого проєкту (з адреси дашборду)
+#   ANTHROPIC_API_KEY      — НОВИЙ, відкликаний-і-перевиданий ключ з console.anthropic.com
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-supabase.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Guard — required secrets present
+        run: |
+          missing=""
+          [ -n "${SUPABASE_ACCESS_TOKEN}" ] || missing="${missing} SUPABASE_ACCESS_TOKEN"
+          [ -n "${PROJECT_ID}" ] || missing="${missing} SUPABASE_PROJECT_ID"
+          [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ] || missing="${missing} ANTHROPIC_API_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing GitHub secrets:${missing}. Add them in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Set ANTHROPIC_API_KEY secret (server-side only)
+        run: supabase secrets set ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" --project-ref "${PROJECT_ID}"
+
+      - name: Deploy Edge Functions
+        run: |
+          for fn in humanize alternatives detect; do
+            echo ">> deploying ${fn}"
+            supabase functions deploy "${fn}" --project-ref "${PROJECT_ID}"
+          done
+
+      - name: Print client URL
+        run: |
+          echo "Deployed. Point the Expo client at:"
+          echo "EXPO_PUBLIC_API_URL=https://${PROJECT_ID}.supabase.co/functions/v1"
