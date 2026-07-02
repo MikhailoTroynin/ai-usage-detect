@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { AuthError, authErrorResponse, requireUser } from "../_shared/auth.ts";
 import { heuristicDetector } from "../_shared/aiDetector.ts";
 
 const MAX_TEXT_LENGTH = 20000;
@@ -9,6 +10,13 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  try {
+    await requireUser(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   let body: { text?: unknown };

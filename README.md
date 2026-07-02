@@ -89,7 +89,20 @@ EXPO_PUBLIC_API_URL=https://<your-project-ref>.supabase.co/functions/v1
 
 Never commit `supabase/.env.local` or paste API keys into chat/commits — the `.env*.local` pattern is already gitignored. If a key is ever pasted somewhere it could be logged (chat, CI logs, issue text), treat it as compromised and rotate it in the Anthropic Console.
 
-These functions currently accept unauthenticated requests (`verify_jwt = false`) since auth is deferred per `PLAN.md`; add auth before any public deployment.
+These functions require a signed-in Supabase user: `_shared/auth.ts` (`requireUser`)
+validates the caller's access token via `GET /auth/v1/user` and rejects anonymous
+requests with 401, so knowing the URL is not enough to spend the Anthropic key.
+(`verify_jwt` is left `false`; the in-code guard is the enforcement, and it is
+stronger — `verify_jwt` alone would also accept the public anon key.)
+
+The client signs in with an email one-time code (`src/screens/Auth.tsx`,
+`src/lib/supabase.ts`). It needs two public Expo variables — the anon key is a
+public value, safe to ship in the client:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon public key from Project Settings → API>
+```
 
 ### Design source
 

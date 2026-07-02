@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { AuthError, authErrorResponse, requireUser } from "../_shared/auth.ts";
 import { AnthropicConfigError, callClaude } from "../_shared/anthropic.ts";
 import { cleanAiSlop } from "../_shared/aiSlopCleanup.ts";
 import {
@@ -19,6 +20,13 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  try {
+    await requireUser(req);
+  } catch (err) {
+    if (err instanceof AuthError) return authErrorResponse(err);
+    throw err;
   }
 
   let body: { text?: unknown; mode?: unknown; tone?: unknown; style?: unknown };

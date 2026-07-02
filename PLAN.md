@@ -85,8 +85,10 @@
 
     **Живий деплой не виконано з цього середовища й не може бути:** потрібні (а) project-ref користувача, (б) **новий**, відкликаний-і-перевиданий `ANTHROPIC_API_KEY` (старий вважати скомпрометованим), (в) `supabase` CLI, автентифікований проти реального проєкту. У цьому ефемерному контейнері немає ні `supabase`/`deno`, ні доступу до Supabase-проєкту користувача. Щоб завершити пункт: локально заповнити `supabase/.env.local` новим ключем і запустити `supabase/deploy.sh <project-ref>`.
 
-13. **Auth перед публічним відкриттям**
-    Функції зараз `verify_jwt = false` (навмисно, MVP без auth). Перед будь-яким публічним доступом: увімкнути Supabase Auth, виставити `verify_jwt = true` для `humanize`/`alternatives`/`detect`, прив'язати до auth-сесії в клієнті (`src/lib/api.ts`).
+13. ~~**Auth перед публічним відкриттям**~~ ✅ Зроблено (email-OTP)
+    Вхід за одноразовим кодом з e-mail (без пароля), через Supabase Auth REST API. **Сервер:** `_shared/auth.ts` (`requireUser`) валідує токен виклику через `GET /auth/v1/user` і пускає лише справжнього залогіненого користувача — навмисно сильніше за `verify_jwt`, бо той пропускає й публічний anon-ключ (він у клієнтському бандлі). Гард додано в `humanize`/`alternatives`/`detect`; `SUPABASE_URL`/`SUPABASE_ANON_KEY` Supabase інжектить у функції автоматично, тож нових секретів не треба. **Клієнт:** `src/lib/supabase.ts` (email-OTP через `fetch`, без нових залежностей, сесія в пам'яті + silent refresh), екран `src/screens/Auth.tsx` (e-mail → код), гейт у `RootNavigator` (усе, крім onboarding, за входом), `api.ts` чіпляє `Authorization: Bearer` і робить один refresh-retry на 401, `Profile` показує реальний e-mail і робить справжній вихід. Клієнтські публічні змінні: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (anon-ключ публічний, не секрет). Перевірено: `tsc --noEmit` чистий, `expo export --platform web` збирається, у бандлі немає Anthropic-секретів.
+
+    *Follow-up (маленький): персистити сесію між холодними стартами (зараз — повторний вхід при перезапуску застосунку). `verify_jwt` лишено `false` — enforcement робить `requireUser` у коді.*
 
 14. **Кредити/ліміти використання**
     Без auth і білінгу зараз немає захисту від зловживання дорогим `/humanize`-викликом. Мінімум — rate-limit per-IP/per-user на Edge Function рівні, до повного білінгу.

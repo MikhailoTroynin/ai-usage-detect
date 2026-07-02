@@ -11,6 +11,7 @@ import { Sheet } from '../components/Sheet';
 import { useTheme } from '../theme/ThemeContext';
 import { CREDITS_TOTAL, CREDITS_USED } from '../data/content';
 import { ScreenProps } from '../navigation/types';
+import { useSession, signOut } from '../lib/supabase';
 
 function Row({ icon, title, detail, onPress, danger, last, control }: {
   icon: string; title: string; detail?: string; onPress?: () => void; danger?: boolean; last?: boolean; control?: React.ReactNode;
@@ -54,6 +55,8 @@ const APPEARANCE_OPTIONS: Array<{ id: 'light' | 'dark' | 'system'; label: string
 
 export function Profile({ go }: ScreenProps) {
   const { theme, preference, setPreference } = useTheme();
+  const session = useSession();
+  const email = session?.email ?? 'alex@contentlab.co';
   const [privacy, setPrivacy] = useState(true);
   const [notif, setNotif] = useState(true);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -70,7 +73,7 @@ export function Profile({ go }: ScreenProps) {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 19, fontWeight: '700', letterSpacing: -0.4, color: theme.text }}>Alex Morgan</Text>
-            <Text style={{ fontSize: 13.5, color: theme.textMuted }}>alex@contentlab.co</Text>
+            <Text style={{ fontSize: 13.5, color: theme.textMuted }}>{email}</Text>
           </View>
           <Chip color={theme.accent} bg={theme.accentSoft}>Starter</Chip>
         </View>
@@ -105,7 +108,7 @@ export function Profile({ go }: ScreenProps) {
         </View>
 
         <Card pad={0}>
-          <Row icon="close" title="Sign out" danger onPress={() => go('onboarding')} last />
+          <Row icon="close" title="Sign out" danger onPress={() => { signOut(); go('onboarding'); }} last />
         </Card>
         <Text style={{ textAlign: 'center', fontSize: 12, color: theme.textFaint, paddingBottom: 24 }}>AI Humanizer · v1.0.0</Text>
       </View>
