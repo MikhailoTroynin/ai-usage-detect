@@ -34,6 +34,18 @@ npm run start   # then press i / a / w, or scan the QR code with Expo Go
 
 `POST /detect` scores text with a heuristic AI-detector (stock phrases, repeated sentence openers, low lexical variety) — no external API or key required. It returns sentence-level `red`/`amber`/`green` risk plus an overall score, behind an `AiDetector` interface designed to be swapped for a real GPTZero/Turnitin integration later without changing callers.
 
+Client configuration (Expo public variables only):
+
+```bash
+# Optional; defaults to the local Supabase Functions URL below
+EXPO_PUBLIC_API_URL=http://127.0.0.1:54321/functions/v1
+
+# Optional; defaults to 45000 ms
+EXPO_PUBLIC_API_TIMEOUT_MS=45000
+```
+
+Only `EXPO_PUBLIC_*` values are bundled into the Expo client, so never place provider API keys there. Keep secrets in Supabase Edge Function environment variables.
+
 Local development:
 
 ```bash

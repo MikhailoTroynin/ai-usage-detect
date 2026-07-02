@@ -5,20 +5,46 @@ import { Risk } from '../data/content';
 // EXPO_PUBLIC_API_URL for staging/prod builds. No secrets live here — the client
 // only ever talks to our own proxy, never directly to Anthropic.
 const DEFAULT_API_URL = 'http://127.0.0.1:54321/functions/v1';
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_URL;
+const DEFAULT_TIMEOUT_MS = 45_000;
+
+function normalizeApiUrl(value: string | undefined): string {
+  const raw = value?.trim() || DEFAULT_API_URL;
+  return raw.replace(/\/+$/, '');
+}
+
+function parseTimeout(value: string | undefined): number {
+  if (!value) return DEFAULT_TIMEOUT_MS;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
+}
+
+export const apiConfig = {
+  baseUrl: normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL),
+  timeoutMs: parseTimeout(process.env.EXPO_PUBLIC_API_TIMEOUT_MS),
+};
 
 export class ApiError extends Error {}
+export class ApiTimeoutError extends ApiError {}
 
 async function post<T>(path: string, payload: unknown): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), apiConfig.timeoutMs);
   let res: Response;
+
   try {
-    res = await fetch(`${API_URL}${path}`, {
+    res = await fetch(`${apiConfig.baseUrl}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new ApiTimeoutError('The request timed out. Check your connection and try again.');
+    }
     throw new ApiError('Could not reach the server. Check your connection and try again.');
+  } finally {
+    clearTimeout(timeout);
   }
 
   let body: Record<string, unknown> | null = null;
@@ -32,6 +58,11 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
     const message = typeof body?.error === 'string' ? body.error : `Request failed (${res.status})`;
     throw new ApiError(message);
   }
+
+  if (!body) {
+    throw new ApiError('Unexpected empty response from server');
+  }
+
   return body as T;
 }
 

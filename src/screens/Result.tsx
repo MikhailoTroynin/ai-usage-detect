@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Header } from '../components/Header';
@@ -39,13 +39,20 @@ export function Result({ go, result }: ResultProps) {
   const { theme } = useTheme();
   const RISK = useRisk();
   const [sentences, setSentences] = useState<ResultSentence[]>(result?.sentences ?? RESULT_SENTENCES);
+
+  useEffect(() => {
+    setSentences(result?.sentences ?? RESULT_SENTENCES);
+    setActive(null);
+    setAltsError(null);
+    setAltsLoading(false);
+  }, [result]);
   const [active, setActive] = useState<ResultSentence | null>(null);
   const [copied, setCopied] = useState(false);
   const [altsLoading, setAltsLoading] = useState(false);
   const [altsError, setAltsError] = useState<string | null>(null);
 
   const flagged = sentences.filter(s => s.risk !== 'green').length;
-  const overall = Math.round(sentences.reduce((a, s) => a + s.score, 0) / sentences.length);
+  const overall = sentences.length > 0 ? Math.round(sentences.reduce((a, s) => a + s.score, 0) / sentences.length) : 0;
   const before = result?.beforeScore ?? 94;
 
   const openSentence = async (s: ResultSentence) => {
