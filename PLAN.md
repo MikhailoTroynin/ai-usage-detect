@@ -31,8 +31,8 @@
 2. ~~**Layer 1 — LLM humanize endpoint**~~ ✅ Зроблено
    `POST /humanize` валідує `{text, mode, tone, style}` проти реальних значень з `src/data/content.ts` (`light/medium/aggressive/ninja`, 13 тонів, 5 стилів) і будує системний промпт у `supabase/functions/_shared/humanizePrompt.ts` — окремі інструкції під кожен режим (light → лише легкі правки; medium → баланс довжини речень; aggressive → високі перплексія/сплесковість; ninja → максимальна ентропія), плюс тон і стиль. Невалідні `mode`/`tone`/`style` повертають 400.
 
-3. **Layer 2 — regex AI-slop post-processing**
-   Чистий TS-модуль зі списком маркерів (delve, tapestry, crucial, vibrant, nestled, underscore, furthermore, in conclusion тощо) і таблицею синонімічних замін, застосовується до виходу LLM.
+3. ~~**Layer 2 — regex AI-slop post-processing**~~ ✅ Зроблено
+   `supabase/functions/_shared/aiSlopCleanup.ts` — чистий TS-модуль зі списком маркерів (delve, tapestry, crucial, vibrant, nestled, underscore, furthermore, moreover, in conclusion, boasts, testament to, realm, elevate, leverage, robust, seamless, unlock, unleash, game-changer, cutting-edge, ever-evolving тощо) і таблицею синонімічних замін (кілька варіантів на маркер, обирається випадково, щоб повтори маркера не схлопувались в один і той самий патерн). Заміна регістро-незалежна (`\b`-межі слів), зберігає регістр оригіналу (Title Case / UPPERCASE). `POST /humanize` тепер прогонює відповідь Claude через `cleanAiSlop()` перед поверненням клієнту. Юніт-тести в `aiSlopCleanup.test.ts` (Deno test runner).
 
 4. **Евристичний детектор ШІ**
    GPTZero/Turnitin потребують окремих платних ключів, яких поки немає — робимо власну евристичну sentence-level оцінку (red/yellow/green) за інтерфейсом, сумісним з майбутньою підміною на реальний GPTZero.

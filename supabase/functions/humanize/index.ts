@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { AnthropicConfigError, callClaude } from "../_shared/anthropic.ts";
+import { cleanAiSlop } from "../_shared/aiSlopCleanup.ts";
 import {
   buildHumanizeSystemPrompt,
   isValidMode,
@@ -48,7 +49,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const rewritten = await callClaude({ system, prompt: text });
-    return jsonResponse({ text: rewritten });
+    return jsonResponse({ text: cleanAiSlop(rewritten) });
   } catch (err) {
     if (err instanceof AnthropicConfigError) {
       return jsonResponse({ error: err.message }, 500);
