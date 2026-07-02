@@ -1,25 +1,6 @@
 # ai-usage-detect
 
-This repository contains two independent projects:
-
-- **[`ai_usage_detect/`](ai_usage_detect/)** — a small Python heuristic scorer for spotting text with surface-level signs of being AI-generated (stock phrases, repeated sentence openers, low lexical variety).
-- **AI Humanizer app** (repo root) — an Expo (React Native) implementation of the "AI Humanizer" mobile app UI, built from a Claude Design HTML/JSX handoff and the accompanying BRD.
-
-## Python: AI-text heuristic detector
-
-```python
-from ai_usage_detect import analyze_text
-
-result = analyze_text("As an AI language model, I don't have personal opinions.")
-print(result.score, result.likely_ai_generated, result.signals)
-```
-
-Tests:
-
-```
-pip install pytest
-pytest tests/
-```
+**AI Humanizer app** — an Expo (React Native) implementation of the "AI Humanizer" mobile app UI, built from a Claude Design HTML/JSX handoff and the accompanying BRD.
 
 ## Expo app: AI Humanizer
 
