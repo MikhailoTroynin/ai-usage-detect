@@ -8,22 +8,52 @@ import { Gauge } from '../components/Gauge';
 import { Icon } from '../components/Icon';
 import { Button } from '../components/Button';
 import { useTheme } from '../theme/ThemeContext';
-import { DETECT_SENTENCES, DETECTORS, SAMPLE_INPUT } from '../data/content';
-import { ScreenProps } from '../navigation/types';
+import { SAMPLE_INPUT } from '../data/content';
+import { ScreenProps, HumanizeResultSentence } from '../navigation/types';
 import { SentenceSpan } from './Result';
+import { ApiError, detect, DetectResult } from '../lib/api';
 
-type Phase = 'input' | 'scanning' | 'done';
+type Phase = 'input' | 'scanning' | 'done' | 'error';
 
 export function Detector({ go }: ScreenProps) {
   const { theme } = useTheme();
   const [text, setText] = useState(SAMPLE_INPUT);
   const [phase, setPhase] = useState<Phase>('input');
+  const [result, setResult] = useState<DetectResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
 
-  const run = () => {
+  const run = async () => {
     setPhase('scanning');
-    setTimeout(() => setPhase('done'), 1600);
+    setError(null);
+    try {
+      const nextResult = await detect(text);
+      setResult(nextResult);
+      setPhase('done');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not scan this text. Please try again.');
+      setPhase('error');
+    }
   };
+
+  const reset = () => {
+    setResult(null);
+    setError(null);
+    setPhase('input');
+  };
+
+  const score = result?.overallScore ?? 0;
+  const flagged = result?.sentences.filter(s => s.risk !== 'green').length ?? 0;
+  const sentenceSpans: HumanizeResultSentence[] = result?.sentences.map((s, i) => ({
+    id: `d${i}`,
+    text: s.text,
+    risk: s.risk,
+    score: s.score,
+    alts: null,
+  })) ?? [];
+  const resultColor = result?.risk === 'red' ? theme.riskRed : result?.risk === 'amber' ? theme.riskAmber : theme.riskGreen;
+  const resultBg = result?.risk === 'red' ? theme.riskRedBg : result?.risk === 'amber' ? theme.riskAmberBg : theme.riskGreenBg;
+  const resultTitle = result?.risk === 'red' ? 'Heavily AI-detectable' : result?.risk === 'amber' ? 'Mixed AI signal' : 'Mostly human-sounding';
 
   return (
     <Screen pb={120}>
@@ -53,27 +83,40 @@ export function Detector({ go }: ScreenProps) {
         {phase === 'scanning' && (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 11, paddingVertical: 16 }}>
             <ActivityIndicator size="small" color={theme.accent} />
-            <Text style={{ color: theme.textMuted, fontSize: 15, fontWeight: '600' }}>Scanning across 4 detectors…</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 15, fontWeight: '600' }}>Running heuristic detector…</Text>
           </View>
         )}
 
-        {phase === 'done' && (
+        {phase === 'error' && (
+          <Card pad={18} style={{ borderColor: theme.riskRed, gap: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', color: theme.text }}>Scan failed</Text>
+            <Text style={{ fontSize: 13.5, color: theme.textMuted, lineHeight: 19 }}>{error}</Text>
+            <Button full size="md" icon="refresh" onPress={run}>Try again</Button>
+          </Card>
+        )}
+
+        {phase === 'done' && result && (
           <>
-            <Card pad={20} style={{ backgroundColor: theme.riskRedBg, borderColor: theme.riskRed }}>
+            <Card pad={20} style={{ backgroundColor: resultBg, borderColor: resultColor }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-                <Gauge value={94} size={108} thickness={11} color={theme.riskRed} label="94%" sub="likely AI" />
+                <Gauge value={score} size={108} thickness={11} color={resultColor} label={`${score}%`} sub={result.risk === 'red' ? 'likely AI' : result.risk === 'amber' ? 'mixed' : 'low risk'} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text, letterSpacing: -0.3 }}>Heavily AI-detectable</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text, letterSpacing: -0.3 }}>{resultTitle}</Text>
                   <Text style={{ fontSize: 13.5, color: theme.textMuted, marginTop: 5, lineHeight: 19 }}>
-                    This text would be flagged by most detectors. 4 of 5 sentences read as machine-written.
+                    Heuristic scan flagged {flagged} of {result.sentences.length} sentence{result.sentences.length === 1 ? '' : 's'} as red or amber.
                   </Text>
                 </View>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
-                {DETECTORS.map(d => (
-                  <View key={d.id} style={{ flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.surface, borderRadius: 10, padding: 10 }}>
-                    <Text style={{ fontSize: 12.5, fontWeight: '600', color: theme.textMuted }}>{d.name}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: theme.riskRed }}>{d.before}%</Text>
+                {[
+                  ['Overall score', `${score}%`],
+                  ['Sentences', String(result.sentences.length)],
+                  ['Flagged', String(flagged)],
+                  ['Engine', 'Heuristic'],
+                ].map(([label, value]) => (
+                  <View key={label} style={{ flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.surface, borderRadius: 10, padding: 10 }}>
+                    <Text style={{ fontSize: 12.5, fontWeight: '600', color: theme.textMuted }}>{label}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: resultColor }}>{value}</Text>
                   </View>
                 ))}
               </View>
@@ -82,7 +125,7 @@ export function Detector({ go }: ScreenProps) {
             <Card pad={16}>
               <Text style={{ fontSize: 13, fontWeight: '700', color: theme.textMuted, marginBottom: 10 }}>Sentence breakdown</Text>
               <Text style={{ fontSize: 15, lineHeight: 26, color: theme.text }}>
-                {DETECT_SENTENCES.map(s => <SentenceSpan key={s.id} s={{ ...s, alts: null }} />)}
+                {sentenceSpans.map(s => <SentenceSpan key={s.id} s={s} />)}
               </Text>
             </Card>
 
@@ -99,7 +142,7 @@ export function Detector({ go }: ScreenProps) {
                 <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>Humanize this text</Text>
               </Pressable>
             </Card>
-            <Pressable onPress={() => setPhase('input')} style={{ padding: 4, alignItems: 'center' }}>
+            <Pressable onPress={reset} style={{ padding: 4, alignItems: 'center' }}>
               <Text style={{ color: theme.textMuted, fontSize: 14, fontWeight: '600' }}>Scan another text</Text>
             </Pressable>
           </>

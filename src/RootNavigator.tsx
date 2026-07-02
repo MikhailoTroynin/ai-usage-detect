@@ -74,7 +74,7 @@ export function RootNavigator() {
     processing: <Processing go={go} stage={humanizeStage} error={humanizeError} onRetry={runHumanize} onCancel={() => go('humanize')} />,
     result:     <Result go={go} result={result} />,
     detector:   <Detector go={go} />,
-    stats:      <Metrics go={go} />,
+    stats:      <Metrics go={go} result={result} />,
     pricing:    <Pricing go={go} />,
     profile:    <Profile go={go} />,
   };
