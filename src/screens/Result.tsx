@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Header } from '../components/Header';
 import { Card } from '../components/Card';
@@ -10,11 +10,12 @@ import { Button } from '../components/Button';
 import { Sheet } from '../components/Sheet';
 import { useTheme } from '../theme/ThemeContext';
 import { DETECTORS, ResultSentence, RESULT_SENTENCES, Risk } from '../data/content';
-import { ScreenProps } from '../navigation/types';
+import { HumanizeResult, ScreenProps } from '../navigation/types';
+import { alternatives, ApiError } from '../lib/api';
 
 export function SentenceSpan({ s, onPress }: { s: ResultSentence | { id: string; text: string; risk: Risk; score: number; alts?: null }; onPress?: () => void }) {
   const RISK = useRisk();
-  const clickable = s.risk !== 'green' && !!(s as ResultSentence).alts;
+  const clickable = s.risk !== 'green' && !!onPress;
   const r = RISK[s.risk];
   return (
     <Text
@@ -30,15 +31,38 @@ export function SentenceSpan({ s, onPress }: { s: ResultSentence | { id: string;
   );
 }
 
-export function Result({ go }: ScreenProps) {
+interface ResultProps extends ScreenProps {
+  result: HumanizeResult | null;
+}
+
+export function Result({ go, result }: ResultProps) {
   const { theme } = useTheme();
   const RISK = useRisk();
-  const [sentences, setSentences] = useState(RESULT_SENTENCES);
+  const [sentences, setSentences] = useState<ResultSentence[]>(result?.sentences ?? RESULT_SENTENCES);
   const [active, setActive] = useState<ResultSentence | null>(null);
   const [copied, setCopied] = useState(false);
+  const [altsLoading, setAltsLoading] = useState(false);
+  const [altsError, setAltsError] = useState<string | null>(null);
 
   const flagged = sentences.filter(s => s.risk !== 'green').length;
   const overall = Math.round(sentences.reduce((a, s) => a + s.score, 0) / sentences.length);
+  const before = result?.beforeScore ?? 94;
+
+  const openSentence = async (s: ResultSentence) => {
+    setActive(s);
+    setAltsError(null);
+    if (s.alts && s.alts.length > 0) return;
+    setAltsLoading(true);
+    try {
+      const alts = await alternatives(s.text, 3);
+      setSentences(prev => prev.map(x => (x.id === s.id ? { ...x, alts } : x)));
+      setActive(prev => (prev && prev.id === s.id ? { ...prev, alts } : prev));
+    } catch (err) {
+      setAltsError(err instanceof ApiError ? err.message : 'Could not load alternatives.');
+    } finally {
+      setAltsLoading(false);
+    }
+  };
 
   const applyAlt = (alt: string) => {
     setSentences(prev => prev.map(s => s.id === active!.id
@@ -59,7 +83,7 @@ export function Result({ go }: ScreenProps) {
             <Gauge value={overall} size={104} thickness={10} color={theme.riskGreen} label={`${overall}%`} sub="AI score" />
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                <Chip color={theme.riskRed} bg={theme.riskRedBg}>Before 94%</Chip>
+                <Chip color={theme.riskRed} bg={theme.riskRedBg}>Before {before}%</Chip>
                 <Icon name="arrowR" size={15} stroke={theme.textFaint} />
                 <Chip color={theme.riskGreen} bg={theme.riskGreenBg}>After {overall}%</Chip>
               </View>
@@ -94,7 +118,7 @@ export function Result({ go }: ScreenProps) {
           </View>
           <Card pad={16}>
             <Text style={{ fontSize: 15.5, lineHeight: 26, color: theme.text }}>
-              {sentences.map(s => <SentenceSpan key={s.id} s={s} onPress={() => setActive(s)} />)}
+              {sentences.map(s => <SentenceSpan key={s.id} s={s} onPress={() => openSentence(s)} />)}
             </Text>
           </Card>
         </View>
@@ -115,7 +139,19 @@ export function Result({ go }: ScreenProps) {
               <Chip color={RISK[active.risk].c} bg={RISK[active.risk].bg}>{RISK[active.risk].label} · {active.score}%</Chip>
               <Text style={{ fontSize: 12.5, color: theme.textMuted }}>Generated at temperature 1.0</Text>
             </View>
-            {active.alts && active.alts.map((alt, i) => (
+            {altsLoading && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 22 }}>
+                <ActivityIndicator size="small" color={theme.accent} />
+                <Text style={{ color: theme.textMuted, fontSize: 14, fontWeight: '600' }}>Generating alternatives…</Text>
+              </View>
+            )}
+            {!altsLoading && altsError && (
+              <View style={{ gap: 10, alignItems: 'center', paddingVertical: 12 }}>
+                <Text style={{ color: theme.riskRed, fontSize: 13.5, textAlign: 'center' }}>{altsError}</Text>
+                <Button variant="ghost" size="sm" icon="refresh" onPress={() => openSentence(active)}>Retry</Button>
+              </View>
+            )}
+            {!altsLoading && !altsError && active.alts && active.alts.map((alt, i) => (
               <Pressable key={i} onPress={() => applyAlt(alt)} style={{
                 borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surface, borderRadius: 14,
                 padding: 15, flexDirection: 'row', gap: 11,
