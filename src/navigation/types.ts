@@ -16,6 +16,12 @@ export interface EditorState {
   style: string;
 }
 
+export interface HumanizeResult {
+  text: string;
+}
+
+export type HumanizeStage = 'idle' | 'pending' | 'done' | 'error';
+
 export interface ScreenProps {
   go: (screen: ScreenName) => void;
 }

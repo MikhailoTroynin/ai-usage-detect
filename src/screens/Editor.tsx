@@ -16,9 +16,10 @@ import { EditorState, ScreenProps } from '../navigation/types';
 interface EditorProps extends ScreenProps {
   state: EditorState;
   set: (patch: Partial<EditorState>) => void;
+  onSubmit: () => void;
 }
 
-export function Editor({ go, state, set }: EditorProps) {
+export function Editor({ state, set, onSubmit }: EditorProps) {
   const { theme } = useTheme();
   const [importOpen, setImportOpen] = useState(false);
   const words = state.input.trim() ? state.input.trim().split(/\s+/).length : 0;
@@ -92,7 +93,7 @@ export function Editor({ go, state, set }: EditorProps) {
           <Text style={{ fontSize: 13.5, color: theme.textMuted }}>{(CREDITS_TOTAL - CREDITS_USED).toLocaleString()} left</Text>
         </View>
 
-        <Button full size="lg" icon="wand" disabled={words === 0} onPress={() => go('processing')}>
+        <Button full size="lg" icon="wand" disabled={words === 0} onPress={onSubmit}>
           Humanize {words > 0 ? `${words} words` : 'text'}
         </Button>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
