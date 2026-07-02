@@ -40,7 +40,11 @@ function pickRandom<T>(items: T[]): T {
 }
 
 function matchCase(replacement: string, original: string): string {
-  if (original === original.toUpperCase() && original !== original.toLowerCase()) {
+  // Multi-word markers (e.g. "delve into") are matched as a single span, so an
+  // all-caps leading word ("DELVE into") wouldn't make the *whole* span uppercase.
+  // Judge case by the first word only, so it still counts as shouting.
+  const firstWord = original.split(/\s+/)[0] ?? original;
+  if (firstWord === firstWord.toUpperCase() && firstWord !== firstWord.toLowerCase()) {
     return replacement.toUpperCase();
   }
   if (original[0] === original[0].toUpperCase() && original[0] !== original[0].toLowerCase()) {
