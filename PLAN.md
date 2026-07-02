@@ -53,8 +53,8 @@
 8. ~~**Wire Detector + Metrics**~~ ✅ Зроблено
    `src/screens/Detector.tsx` тепер викликає реальний `detect()` для довільно вставленого тексту, показує loading/error стани, загальний heuristic AI-score і реальну sentence-level підсвітку з відповіді `/detect`. `src/screens/Metrics.tsx` рахує live FRE/FKGL, середню довжину речення, склади на слово й sentence-length distribution через `analyzeReadability()` для останнього humanize-результату (або sample fallback, якщо результату ще немає).
 
-9. **Конфіг та обробка помилок**
-   `EXPO_PUBLIC_*` змінна для URL бекенду (без секретів у клієнті), loading/error/timeout стани на Editor/Processing/Result/Detector замість припущення, що мок завжди успішний.
+9. ~~**Конфіг та обробка помилок**~~ ✅ Зроблено
+   `src/lib/api.ts` централізував клієнтську конфігурацію backend-проксі: `EXPO_PUBLIC_API_URL` нормалізується з локальним дефолтом Supabase Functions, додано `EXPO_PUBLIC_API_TIMEOUT_MS` з дефолтом 45 секунд, `AbortController`-timeout і окремий `ApiTimeoutError`. README документує лише публічні Expo-змінні й явно нагадує не класти секрети в клієнт. Result тепер синхронізує локальний стан речень після повторного запуску й скидає loading/error стан альтернатив, щоб не показувати застарілі дані після нового humanize-результату.
 
 10. **Наскрізна ручна QA**
     Прогнати цикл Editor → Processing → Result → Metrics → Detector (web + Expo Go), перевірити відсутність API-ключів у клієнтському трафіку/бандлі.
