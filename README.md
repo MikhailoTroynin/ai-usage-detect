@@ -56,6 +56,14 @@ npx supabase functions serve --env-file supabase/.env.local
 
 Deploy:
 
+**No computer / browser only?** See [`supabase/DEPLOY-UA.md`](supabase/DEPLOY-UA.md) for a
+click-by-click, browser-only path that lets GitHub Actions do the deploy for
+you (`.github/workflows/deploy-supabase.yml`). Add three repository secrets
+(`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_ID`, `ANTHROPIC_API_KEY`) and press
+**Run workflow** — no local CLI needed.
+
+Or, with the CLI on your own machine:
+
 ```bash
 # One-shot: link + set the ANTHROPIC_API_KEY secret + deploy all three functions.
 # Reads the (gitignored) key from supabase/.env.local; must run locally by the
