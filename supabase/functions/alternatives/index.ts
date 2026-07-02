@@ -10,6 +10,14 @@ const MAX_SENTENCE_LENGTH = 2000;
 const DEFAULT_COUNT = 3;
 const MAX_COUNT = 5;
 
+// Claude often wraps JSON in a ```json … ``` markdown fence even when told not to.
+// Strip a leading/trailing fence (with optional language tag) before parsing.
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return (fenced ? fenced[1] : trimmed).trim();
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -40,10 +48,10 @@ Deno.serve(async (req: Request) => {
   const prompt = `Sentence: ${sentence}\n\nGive ${alternativeCount} alternative phrasings.`;
 
   try {
-    const raw = await callClaude({ system: SYSTEM_PROMPT, prompt, temperature: 1.0 });
+    const raw = await callClaude({ system: SYSTEM_PROMPT, prompt });
     let alternatives: unknown;
     try {
-      alternatives = JSON.parse(raw);
+      alternatives = JSON.parse(stripCodeFence(raw));
     } catch {
       return jsonResponse({ error: "Model did not return valid JSON" }, 502);
     }
