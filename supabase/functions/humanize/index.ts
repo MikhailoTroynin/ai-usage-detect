@@ -1,12 +1,14 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { AnthropicConfigError, callClaude } from "../_shared/anthropic.ts";
-
-// Minimal proxy for item 1 of PLAN.md: keeps ANTHROPIC_API_KEY server-side.
-// Mode/tone/style-aware prompt tuning is item 2, not implemented here yet.
-const BASE_SYSTEM_PROMPT =
-  "You rewrite text so it reads naturally, as if written by a human. " +
-  "Preserve the original meaning, facts, and approximate length. " +
-  "Reply with only the rewritten text, no preamble or explanation.";
+import {
+  buildHumanizeSystemPrompt,
+  isValidMode,
+  isValidStyle,
+  isValidTone,
+  MODES,
+  STYLES,
+  TONES,
+} from "../_shared/humanizePrompt.ts";
 
 const MAX_TEXT_LENGTH = 20000;
 
@@ -32,13 +34,17 @@ Deno.serve(async (req: Request) => {
   if (text.length > MAX_TEXT_LENGTH) {
     return jsonResponse({ error: `'text' must be at most ${MAX_TEXT_LENGTH} characters` }, 400);
   }
+  if (mode !== undefined && !isValidMode(mode)) {
+    return jsonResponse({ error: `'mode' must be one of: ${MODES.join(", ")}` }, 400);
+  }
+  if (tone !== undefined && !isValidTone(tone)) {
+    return jsonResponse({ error: `'tone' must be one of: ${TONES.join(", ")}` }, 400);
+  }
+  if (style !== undefined && !isValidStyle(style)) {
+    return jsonResponse({ error: `'style' must be one of: ${STYLES.join(", ")}` }, 400);
+  }
 
-  const hints = [
-    typeof mode === "string" && mode ? `Mode: ${mode}.` : null,
-    typeof tone === "string" && tone ? `Tone: ${tone}.` : null,
-    typeof style === "string" && style ? `Style: ${style}.` : null,
-  ].filter(Boolean);
-  const system = hints.length > 0 ? `${BASE_SYSTEM_PROMPT} ${hints.join(" ")}` : BASE_SYSTEM_PROMPT;
+  const system = buildHumanizeSystemPrompt({ mode, tone, style });
 
   try {
     const rewritten = await callClaude({ system, prompt: text });

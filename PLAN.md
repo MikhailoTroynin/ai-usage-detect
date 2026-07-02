@@ -28,8 +28,8 @@
    Реалізовано як Supabase Edge Functions (TS/Deno) у `supabase/functions/`: `POST /humanize` та `POST /alternatives`, обидва тримають `ANTHROPIC_API_KEY` виключно на сервері (`Deno.env.get`), ключ ніколи не потрапляє в клієнтський бандл Expo. Дивись розділ "Backend proxy" в `README.md` для локального запуску й деплою.
    *Примітка: функції ще без auth (`verify_jwt = false`, auth відкладено за планом) і без деплою на реальний Supabase-проєкт — це потребує `supabase link` з project ref користувача.*
 
-2. **Layer 1 — LLM humanize endpoint**
-   Ендпоінт приймає `{text, mode, tone, style}` (Light/Medium/Aggressive/Ninja; 13 тонів; 5–6 стилів) і викликає Claude із системним промптом, налаштованим на ін'єкцію перплексії/сплесковості під обраний режим. Повертає переписаний текст.
+2. ~~**Layer 1 — LLM humanize endpoint**~~ ✅ Зроблено
+   `POST /humanize` валідує `{text, mode, tone, style}` проти реальних значень з `src/data/content.ts` (`light/medium/aggressive/ninja`, 13 тонів, 5 стилів) і будує системний промпт у `supabase/functions/_shared/humanizePrompt.ts` — окремі інструкції під кожен режим (light → лише легкі правки; medium → баланс довжини речень; aggressive → високі перплексія/сплесковість; ninja → максимальна ентропія), плюс тон і стиль. Невалідні `mode`/`tone`/`style` повертають 400.
 
 3. **Layer 2 — regex AI-slop post-processing**
    Чистий TS-модуль зі списком маркерів (delve, tapestry, crucial, vibrant, nestled, underscore, furthermore, in conclusion тощо) і таблицею синонімічних замін, застосовується до виходу LLM.
