@@ -3,8 +3,9 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from './theme/ThemeContext';
 import { TabBar } from './components/TabBar';
-import { ScreenName, EditorState } from './navigation/types';
+import { ScreenName, EditorState, HumanizeResult, HumanizeStage } from './navigation/types';
 import { SAMPLE_INPUT } from './data/content';
+import { ApiError, humanize } from './lib/api';
 
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
@@ -27,9 +28,31 @@ export function RootNavigator() {
   const [editor, setEditor] = useState<EditorState>({
     input: SAMPLE_INPUT, mode: 'medium', tone: 'Conversational', style: 'Marketing',
   });
+  const [humanizeStage, setHumanizeStage] = useState<HumanizeStage>('idle');
+  const [humanizeError, setHumanizeError] = useState<string | null>(null);
+  const [result, setResult] = useState<HumanizeResult | null>(null);
 
   const setEditorPatch = (patch: Partial<EditorState>) => setEditor(s => ({ ...s, ...patch }));
   const go = (s: ScreenName) => setScreen(s);
+
+  const runHumanize = () => {
+    setHumanizeStage('pending');
+    setHumanizeError(null);
+    humanize({ text: editor.input, mode: editor.mode, tone: editor.tone, style: editor.style })
+      .then(text => {
+        setResult({ text });
+        setHumanizeStage('done');
+      })
+      .catch(err => {
+        setHumanizeError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+        setHumanizeStage('error');
+      });
+  };
+
+  const submitHumanize = () => {
+    go('processing');
+    runHumanize();
+  };
 
   const noChrome = NO_CHROME.includes(screen);
   const currentTab = TAB_MAP[screen] ?? null;
@@ -37,8 +60,8 @@ export function RootNavigator() {
   const screens: Record<ScreenName, React.ReactNode> = {
     onboarding: <Onboarding go={go} />,
     home:       <Home go={go} />,
-    humanize:   <Editor go={go} state={editor} set={setEditorPatch} />,
-    processing: <Processing go={go} />,
+    humanize:   <Editor go={go} state={editor} set={setEditorPatch} onSubmit={submitHumanize} />,
+    processing: <Processing go={go} stage={humanizeStage} error={humanizeError} onRetry={runHumanize} onCancel={() => go('humanize')} />,
     result:     <Result go={go} />,
     detector:   <Detector go={go} />,
     stats:      <Metrics go={go} />,
