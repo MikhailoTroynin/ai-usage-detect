@@ -5,7 +5,7 @@
 - Expo (React Native) застосунок вже збирається і запускається (`npm install && npm run start`).
 - Усі 9 екранів, навігація, теми, компоненти зверстані й працюють на **мокових даних** (`src/data/content.ts`).
 - Реальної гуманізації тексту, детекції ШІ, авторизації, кредитів чи оплат немає — це чиста фронтенд-верстка за прототипом.
-- BRD (`design-handoff/uploads/BRD AI detect.txt`) описує повноцінну SaaS-платформу: 4-шаровий pipeline гуманізації, внутрішній цикл детекції з чанкінгом, Supabase (auth+Postgres+RLS), Stripe Sync Engine, OpenRouter, GPTZero. BRD прописує стек **Next.js + Tailwind + Shadcn**, тоді як репозиторій — **Expo мобільний**; це врахували при виборі підходу нижче.
+- BRD (`design-handoff/uploads/BRD-AI-detect.txt`) описує повноцінну SaaS-платформу: 4-шаровий pipeline гуманізації, внутрішній цикл детекції з чанкінгом, Supabase (auth+Postgres+RLS), Stripe Sync Engine, OpenRouter, GPTZero. BRD прописує стек **Next.js + Tailwind + Shadcn**, тоді як репозиторій — **Expo мобільний**; це врахували при виборі підходу нижче.
 
 ## Рішення, прийняті з користувачем
 

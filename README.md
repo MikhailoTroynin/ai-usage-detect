@@ -4,7 +4,7 @@
 
 ## Expo app: AI Humanizer
 
-Expo (React Native) implementation of the "AI Humanizer" mobile app UI, built from a Claude Design HTML/JSX handoff (`AI Humanizer.html` prototype) and the accompanying BRD.
+Expo (React Native) implementation of the "AI Humanizer" mobile app UI, built from a Claude Design HTML/JSX handoff (`AI-Humanizer.html` prototype) and the accompanying BRD.
 
 ### Status
 
@@ -15,7 +15,7 @@ Implemented:
 - Light/dark theming (follows system, with manual override in Account → Appearance)
 - Custom tab bar, bottom sheets, gauges, and the rest of the design system, using mock/demo data matching the original prototype
 
-Not implemented (out of scope for this pass — see `design-handoff/uploads/BRD AI detect.txt` for the full spec):
+Not implemented (out of scope for this pass — see `design-handoff/uploads/BRD-AI-detect.txt` for the full spec):
 - Real humanization pipeline (LLM rewrite via OpenRouter/Claude/Llama, regex post-processing, multi-model chaining)
 - Real AI detection (GPTZero/Turnitin/Copyleaks/Originality.ai integrations)
 - Auth, Supabase/Postgres backend, credits/RLS logic
