@@ -1,7 +1,7 @@
 {
   "name": "ai-usage-detect",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo/AppEntry",
   "dependencies": {
     "expo": "~57.0.1",
     "expo-clipboard": "~57.0.0",
