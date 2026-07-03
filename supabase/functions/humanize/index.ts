@@ -1,5 +1,4 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { AuthError, authErrorResponse, requireUser } from "../_shared/auth.ts";
 import { AnthropicConfigError, callClaude } from "../_shared/anthropic.ts";
 import { cleanAiSlop } from "../_shared/aiSlopCleanup.ts";
 import {
@@ -14,19 +13,16 @@ import {
 
 const MAX_TEXT_LENGTH = 20000;
 
+// Sign-in is temporarily disabled (free Supabase tier can't be configured for
+// email-OTP): this endpoint is open, no requireUser() gate for now. See
+// ../_shared/auth.ts to re-enable.
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
-  }
-
-  try {
-    await requireUser(req);
-  } catch (err) {
-    if (err instanceof AuthError) return authErrorResponse(err);
-    throw err;
   }
 
   let body: { text?: unknown; mode?: unknown; tone?: unknown; style?: unknown };
