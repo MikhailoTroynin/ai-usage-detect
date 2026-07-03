@@ -1,5 +1,4 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { AuthError, authErrorResponse, requireUser } from "../_shared/auth.ts";
 import { AnthropicConfigError, callClaude } from "../_shared/anthropic.ts";
 
 // Minimal proxy for item 1 of PLAN.md: keeps ANTHROPIC_API_KEY server-side.
@@ -10,6 +9,10 @@ const SYSTEM_PROMPT =
 const MAX_SENTENCE_LENGTH = 2000;
 const DEFAULT_COUNT = 3;
 const MAX_COUNT = 5;
+
+// Sign-in is temporarily disabled (free Supabase tier can't be configured for
+// email-OTP): this endpoint is open, no requireUser() gate for now. See
+// ../_shared/auth.ts to re-enable.
 
 // Claude often wraps JSON in a ```json … ``` markdown fence even when told not to.
 // Strip a leading/trailing fence (with optional language tag) before parsing.
@@ -25,13 +28,6 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
-  }
-
-  try {
-    await requireUser(req);
-  } catch (err) {
-    if (err instanceof AuthError) return authErrorResponse(err);
-    throw err;
   }
 
   let body: { sentence?: unknown; count?: unknown };

@@ -6,9 +6,7 @@ import { TabBar } from './components/TabBar';
 import { ScreenName, EditorState, HumanizeResult, HumanizeStage } from './navigation/types';
 import { SAMPLE_INPUT } from './data/content';
 import { ApiError, detect, humanize } from './lib/api';
-import { useSession } from './lib/supabase';
 
-import { Auth } from './screens/Auth';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
 import { Editor } from './screens/Editor';
@@ -26,7 +24,6 @@ const TAB_MAP: Partial<Record<ScreenName, ScreenName>> = {
 
 export function RootNavigator() {
   const { theme } = useTheme();
-  const session = useSession();
   const [screen, setScreen] = useState<ScreenName>('onboarding');
   const [editor, setEditor] = useState<EditorState>({
     input: SAMPLE_INPUT, mode: 'medium', tone: 'Conversational', style: 'Marketing',
@@ -67,17 +64,10 @@ export function RootNavigator() {
     runHumanize();
   };
 
-  // Auth gate: the intro (onboarding) is public, but every other screen — and
-  // especially the paid /humanize call behind them — requires a signed-in user.
-  if (screen !== 'onboarding' && !session) {
-    return (
-      <View style={[styles.root, { backgroundColor: theme.bg }]}>
-        <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
-        <Auth />
-      </View>
-    );
-  }
-
+  // Sign-in is temporarily disabled app-wide: the free Supabase tier can't be
+  // configured for the email-OTP flow (custom SMTP requires a paid plan), so
+  // the product is open without authorization for now. See src/screens/Auth.tsx
+  // and supabase/functions/_shared/auth.ts to re-enable once that's sorted.
   const noChrome = NO_CHROME.includes(screen);
   const currentTab = TAB_MAP[screen] ?? null;
 
