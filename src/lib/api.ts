@@ -109,18 +109,95 @@ export interface DetectSentenceResult {
   risk: Risk;
 }
 
+// Where the overall score + sentence highlighting came from: real detector
+// providers, or the heuristic fallback (client renders "approximate").
+export type DetectSource = 'providers' | 'heuristic';
+
+// One provider's row on the Detectors card. Mirrors the backend `ProviderResult`
+// (supabase/functions/_shared/detectors/types.ts). When `available` is false the
+// score is meaningless — the client shows "N/A" (and the optional `error`).
+export interface DetectProviderResult {
+  id: string;
+  name: string;
+  score: number;
+  risk: Risk;
+  available: boolean;
+  error?: string;
+}
+
 export interface DetectResult {
   overallScore: number;
   risk: Risk;
   sentences: DetectSentenceResult[];
+  // Extended by the multi-detector backend (DETECTOR-INTEGRATION-PLAN.md item 7).
+  // Optional so the client keeps working against an older server that returns
+  // only the sentence-level fields.
+  source?: DetectSource;
+  providers?: DetectProviderResult[];
+}
+
+const RISK_VALUES: readonly Risk[] = ['red', 'amber', 'green'];
+
+function isRisk(value: unknown): value is Risk {
+  return typeof value === 'string' && (RISK_VALUES as readonly string[]).includes(value);
+}
+
+// Same thresholds as the backend `scoreToRisk`, used only as a fallback when a
+// response omits or malforms `risk` so we never show a misleading level.
+function scoreToRisk(score: number): Risk {
+  if (score >= 66) return 'red';
+  if (score >= 35) return 'amber';
+  return 'green';
+}
+
+// Keep only well-formed provider rows; a malformed entry is dropped rather than
+// failing the whole detect call, and an absent/non-array `providers` yields
+// `undefined` so the client falls back to its demo data.
+function parseProviders(value: unknown): DetectProviderResult[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const providers: DetectProviderResult[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const p = entry as Record<string, unknown>;
+    if (
+      typeof p.id !== 'string' ||
+      typeof p.name !== 'string' ||
+      typeof p.score !== 'number' ||
+      !isRisk(p.risk) ||
+      typeof p.available !== 'boolean'
+    ) {
+      continue;
+    }
+    const provider: DetectProviderResult = {
+      id: p.id,
+      name: p.name,
+      score: p.score,
+      risk: p.risk,
+      available: p.available,
+    };
+    if (typeof p.error === 'string') provider.error = p.error;
+    providers.push(provider);
+  }
+  return providers;
 }
 
 export async function detect(text: string): Promise<DetectResult> {
-  const body = await post<Partial<DetectResult>>('/detect', { text });
+  const body = await post<Record<string, unknown>>('/detect', { text });
   if (typeof body?.overallScore !== 'number' || !Array.isArray(body.sentences)) {
     throw new ApiError('Unexpected response from server');
   }
-  return body as DetectResult;
+  const result: DetectResult = {
+    overallScore: body.overallScore,
+    risk: isRisk(body.risk) ? body.risk : scoreToRisk(body.overallScore),
+    sentences: body.sentences as DetectSentenceResult[],
+  };
+  // Extended fields are optional: validate and attach only when well-formed.
+  if (body.source === 'providers' || body.source === 'heuristic') {
+    result.source = body.source;
+  }
+  const providers = parseProviders(body.providers);
+  if (providers) result.providers = providers;
+  return result;
 }
 
 export async function alternatives(sentence: string, count = 3): Promise<string[]> {
