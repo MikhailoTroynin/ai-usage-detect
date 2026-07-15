@@ -45,6 +45,11 @@ export interface HumanizeResult {
   afterScore: number;
   sentences: HumanizeResultSentence[];
   detectors: HumanizeDetector[];
+  // True when the live scores did not come from real detector providers — the
+  // server fell back to its heuristic (`source: "heuristic"`), the scan failed,
+  // or an older server didn't report a source. The Result card labels these
+  // scores as approximate instead of presenting them as real detector output.
+  approximate: boolean;
 }
 
 export type HumanizeStage = 'idle' | 'pending' | 'done' | 'error';

@@ -128,6 +128,11 @@ export function Result({ go, result }: ResultProps) {
               </View>
             ))}
           </View>
+          {result?.approximate && (
+            <Text style={{ fontSize: 11.5, color: theme.textFaint, lineHeight: 16, marginTop: 10 }}>
+              Approximate — scored by our built-in heuristic because no external detector responded.
+            </Text>
+          )}
         </Card>
 
         <View>

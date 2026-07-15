@@ -95,6 +95,9 @@ export function RootNavigator() {
           afterScore: after?.overallScore ?? 0,
           sentences,
           detectors: buildDetectors(before, after),
+          // Anything other than an explicit providers-backed scan is approximate:
+          // heuristic fallback, a failed detect, or an old server with no source.
+          approximate: (after?.source ?? before?.source) !== 'providers',
         });
         setHumanizeStage('done');
       })
