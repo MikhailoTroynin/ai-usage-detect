@@ -19,14 +19,11 @@ import {
   scoreToRisk,
   unavailableDetection,
 } from "./types.ts";
+import { DETECTOR_TIMEOUT_MS, isTimeoutError, withTimeout } from "./timeout.ts";
 
 const ID = "originality";
 const NAME = "Originality.ai";
 const ENDPOINT = "https://api.originality.ai/api/v1/scan/ai";
-
-// Cap external calls well under the client's overall 45s budget (see plan item
-// 11). Enforced with an AbortController so a hung provider can't stall /detect.
-const DEFAULT_TIMEOUT_MS = 20_000;
 
 export interface OriginalityDeps {
   // Lazy key lookup; defaults to `ORIGINALITY_API_KEY` from the environment.
@@ -46,7 +43,7 @@ export function createOriginalityProvider(deps: OriginalityDeps = {}): AiDetecto
     (() => Deno.env.get("ORIGINALITY_MODEL_VERSION"));
   const fetchImpl = deps.fetchImpl ?? fetch;
   const endpoint = deps.endpoint ?? ENDPOINT;
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = deps.timeoutMs ?? DETECTOR_TIMEOUT_MS;
 
   const self = { id: ID, name: NAME };
 
@@ -61,41 +58,39 @@ export function createOriginalityProvider(deps: OriginalityDeps = {}): AiDetecto
         return unavailableDetection(self, "missing ORIGINALITY_API_KEY");
       }
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const requestBody: Record<string, unknown> = { content: text };
-        const modelVersion = getModelVersion();
-        if (modelVersion) requestBody.aiModelVersion = modelVersion;
+        return await withTimeout(timeoutMs, async (signal) => {
+          const requestBody: Record<string, unknown> = { content: text };
+          const modelVersion = getModelVersion();
+          if (modelVersion) requestBody.aiModelVersion = modelVersion;
 
-        const response = await fetchImpl(endpoint, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            accept: "application/json",
-            "X-OAI-API-KEY": apiKey,
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
+          const response = await fetchImpl(endpoint, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+              "X-OAI-API-KEY": apiKey,
+            },
+            body: JSON.stringify(requestBody),
+            signal,
+          });
+
+          if (!response.ok) {
+            // Don't leak the response stream on the error path.
+            await response.body?.cancel();
+            const note = response.status === 429 ? " — rate limited" : "";
+            return unavailableDetection(self, `Originality.ai API error (${response.status})${note}`);
+          }
+
+          const data = await response.json();
+          const result = normalizeOriginality(data);
+          if (!result) {
+            return unavailableDetection(self, "unexpected Originality.ai response shape");
+          }
+          return detectionFromResult(self, result);
         });
-
-        if (!response.ok) {
-          // Don't leak the response stream on the error path.
-          await response.body?.cancel();
-          const note = response.status === 429 ? " — rate limited" : "";
-          return unavailableDetection(self, `Originality.ai API error (${response.status})${note}`);
-        }
-
-        const data = await response.json();
-        const result = normalizeOriginality(data);
-        if (!result) {
-          return unavailableDetection(self, "unexpected Originality.ai response shape");
-        }
-        return detectionFromResult(self, result);
       } catch (err) {
         return unavailableDetection(self, describeError(err, timeoutMs));
-      } finally {
-        clearTimeout(timer);
       }
     },
   };
@@ -162,7 +157,7 @@ function firstArray(...values: unknown[]): unknown[] | null {
 }
 
 function describeError(err: unknown, timeoutMs: number): string {
-  if (err instanceof DOMException && err.name === "AbortError") {
+  if (isTimeoutError(err)) {
     return `Originality.ai request timed out after ${timeoutMs}ms`;
   }
   const reason = err instanceof Error ? err.message : "request failed";
