@@ -19,14 +19,11 @@ import {
   scoreToRisk,
   unavailableDetection,
 } from "./types.ts";
+import { DETECTOR_TIMEOUT_MS, isTimeoutError, withTimeout } from "./timeout.ts";
 
 const ID = "gptzero";
 const NAME = "GPTZero";
 const ENDPOINT = "https://api.gptzero.me/v2/predict/text";
-
-// Cap external calls well under the client's overall 45s budget (see plan item
-// 11). Enforced with an AbortController so a hung provider can't stall /detect.
-const DEFAULT_TIMEOUT_MS = 20_000;
 
 export interface GptzeroDeps {
   // Lazy key lookup; defaults to `GPTZERO_API_KEY` from the environment.
@@ -45,7 +42,7 @@ export function createGptzeroProvider(deps: GptzeroDeps = {}): AiDetectorProvide
   const getVersion = deps.getVersion ?? (() => Deno.env.get("GPTZERO_VERSION"));
   const fetchImpl = deps.fetchImpl ?? fetch;
   const endpoint = deps.endpoint ?? ENDPOINT;
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = deps.timeoutMs ?? DETECTOR_TIMEOUT_MS;
 
   const self = { id: ID, name: NAME };
 
@@ -60,41 +57,39 @@ export function createGptzeroProvider(deps: GptzeroDeps = {}): AiDetectorProvide
         return unavailableDetection(self, "missing GPTZERO_API_KEY");
       }
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const requestBody: Record<string, unknown> = { document: text };
-        const version = getVersion();
-        if (version) requestBody.version = version;
+        return await withTimeout(timeoutMs, async (signal) => {
+          const requestBody: Record<string, unknown> = { document: text };
+          const version = getVersion();
+          if (version) requestBody.version = version;
 
-        const response = await fetchImpl(endpoint, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            accept: "application/json",
-            "x-api-key": apiKey,
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
+          const response = await fetchImpl(endpoint, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+              "x-api-key": apiKey,
+            },
+            body: JSON.stringify(requestBody),
+            signal,
+          });
+
+          if (!response.ok) {
+            // Don't leak the response stream on the error path.
+            await response.body?.cancel();
+            const note = response.status === 429 ? " — rate limited" : "";
+            return unavailableDetection(self, `GPTZero API error (${response.status})${note}`);
+          }
+
+          const data = await response.json();
+          const result = normalizeGptzero(data);
+          if (!result) {
+            return unavailableDetection(self, "unexpected GPTZero response shape");
+          }
+          return detectionFromResult(self, result);
         });
-
-        if (!response.ok) {
-          // Don't leak the response stream on the error path.
-          await response.body?.cancel();
-          const note = response.status === 429 ? " — rate limited" : "";
-          return unavailableDetection(self, `GPTZero API error (${response.status})${note}`);
-        }
-
-        const data = await response.json();
-        const result = normalizeGptzero(data);
-        if (!result) {
-          return unavailableDetection(self, "unexpected GPTZero response shape");
-        }
-        return detectionFromResult(self, result);
       } catch (err) {
         return unavailableDetection(self, describeError(err, timeoutMs));
-      } finally {
-        clearTimeout(timer);
       }
     },
   };
@@ -153,7 +148,7 @@ function normalizeSentences(raw: unknown): SentenceDetection[] {
 }
 
 function describeError(err: unknown, timeoutMs: number): string {
-  if (err instanceof DOMException && err.name === "AbortError") {
+  if (isTimeoutError(err)) {
     return `GPTZero request timed out after ${timeoutMs}ms`;
   }
   const reason = err instanceof Error ? err.message : "request failed";

@@ -57,6 +57,20 @@ These enable the real AI detectors for `POST /detect`. They are **server-only se
 
 The values live only in `supabase/.env.local` (gitignored) for local/CLI deploys, or in GitHub repository secrets for the Actions workflow — `supabase/deploy.sh` and `.github/workflows/deploy-supabase.yml` push whichever ones are present and skip the rest. Turnitin is not listed: it has no public self-serve API, so the client shows it as `N/A` rather than a fabricated score.
 
+#### Resilience & rate limiting
+
+Because real detectors are paid and can hang, `POST /detect` has two guards (`DETECTOR-INTEGRATION-PLAN.md` item 11):
+
+- **Per-provider timeout.** Every external call is capped at a shared 20s budget (`_shared/detectors/timeout.ts`), comfortably under the client's 45s deadline. A provider that hangs is aborted and reported as unavailable rather than stalling the whole request; the others still return.
+- **Per-caller rate limit.** An in-memory fixed-window limiter (`_shared/rateLimit.ts`) caps how often one caller can hit `/detect`. Over the limit returns `429` with a `Retry-After` header. While sign-in is disabled it keys on client IP. The cap and window are optional, server-only env vars:
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `DETECT_RATE_LIMIT` | `30` | Max `/detect` requests per window, per caller |
+| `DETECT_RATE_WINDOW_MS` | `60000` | Window length in ms |
+
+The limiter is in-memory per warm instance (like the text-hash cache), so under horizontal scaling the effective cap is per instance — a deliberately minimal abuse guard, not a global quota.
+
 Local development:
 
 ```bash

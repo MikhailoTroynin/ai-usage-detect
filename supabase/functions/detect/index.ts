@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { multiDetector } from "../_shared/detectors/index.ts";
 import { createCachingMultiDetector } from "../_shared/detectors/cache.ts";
+import { clientKey, createRateLimiter } from "../_shared/rateLimit.ts";
 
 const MAX_TEXT_LENGTH = 20000;
 
@@ -12,9 +13,24 @@ const MAX_TEXT_LENGTH = 20000;
 // aggregator transparently falls back to the heuristic (`source: "heuristic"`).
 const detector = createCachingMultiDetector(multiDetector);
 
+// Per-caller rate limit (DETECTOR-INTEGRATION-PLAN.md item 11). Real detector
+// calls cost money, so we cap how often one caller can hit /detect. Both the
+// cap and the window are env-tunable without a code change; defaults are
+// generous for a human (the client runs ~2 detects per humanize cycle) but
+// throttle scripted abuse. In-memory, so the limit is per warm instance.
+const RATE_LIMIT = parsePositiveInt(Deno.env.get("DETECT_RATE_LIMIT"), 30);
+const RATE_WINDOW_MS = parsePositiveInt(Deno.env.get("DETECT_RATE_WINDOW_MS"), 60_000);
+const rateLimiter = createRateLimiter({ limit: RATE_LIMIT, windowMs: RATE_WINDOW_MS });
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 // Sign-in is temporarily disabled (free Supabase tier can't be configured for
 // email-OTP): this endpoint is open, no requireUser() gate for now. See
-// ../_shared/auth.ts to re-enable.
+// ../_shared/auth.ts to re-enable. Until then the rate limit is keyed by client
+// IP (see clientKey) rather than a user id.
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -22,6 +38,18 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  // Throttle before doing any (paid) work: a blocked caller gets a 429 with a
+  // Retry-After hint and never reaches the detectors.
+  const limit = rateLimiter.check(clientKey(req));
+  if (!limit.allowed) {
+    const retryAfterSec = Math.ceil(limit.retryAfterMs / 1000);
+    return jsonResponse(
+      { error: "Too many requests. Please slow down and try again shortly." },
+      429,
+      { "Retry-After": String(retryAfterSec) },
+    );
   }
 
   let body: { text?: unknown };

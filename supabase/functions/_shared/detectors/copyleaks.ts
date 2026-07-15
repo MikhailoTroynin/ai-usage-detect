@@ -22,17 +22,13 @@ import {
   type SentenceDetection,
   unavailableDetection,
 } from "./types.ts";
+import { DETECTOR_TIMEOUT_MS, isTimeoutError, withTimeout } from "./timeout.ts";
 
 const ID = "copyleaks";
 const NAME = "Copyleaks";
 const LOGIN_ENDPOINT = "https://id.copyleaks.com/v3/account/login/api";
 // The check endpoint takes a caller-supplied scan id (3-36 chars) in its path.
 const CHECK_ENDPOINT_BASE = "https://api.copyleaks.com/v2/writer-detector";
-
-// Cap external calls well under the client's overall 45s budget (see plan item
-// 11). A single AbortController spans both the login and check requests so the
-// whole two-step flow can't exceed this budget.
-const DEFAULT_TIMEOUT_MS = 20_000;
 
 // Re-login this many ms before the cached token's stated expiry, so we never
 // hand a request a token that lapses mid-flight.
@@ -78,7 +74,7 @@ export function createCopyleaksProvider(
   const generateScanId = deps.generateScanId ?? (() => crypto.randomUUID());
   const loginEndpoint = deps.loginEndpoint ?? LOGIN_ENDPOINT;
   const checkEndpointBase = deps.checkEndpointBase ?? CHECK_ENDPOINT_BASE;
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = deps.timeoutMs ?? DETECTOR_TIMEOUT_MS;
 
   const self = { id: ID, name: NAME };
 
@@ -148,53 +144,51 @@ export function createCopyleaksProvider(
         );
       }
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const auth = await ensureToken(email, apiKey, controller.signal);
-        if (!auth.ok) {
-          return unavailableDetection(self, auth.error);
-        }
+        return await withTimeout(timeoutMs, async (signal) => {
+          const auth = await ensureToken(email, apiKey, signal);
+          if (!auth.ok) {
+            return unavailableDetection(self, auth.error);
+          }
 
-        const requestBody: Record<string, unknown> = { text };
-        const sensitivity = parseSensitivity(getSensitivity());
-        if (sensitivity !== null) requestBody.sensitivity = sensitivity;
+          const requestBody: Record<string, unknown> = { text };
+          const sensitivity = parseSensitivity(getSensitivity());
+          if (sensitivity !== null) requestBody.sensitivity = sensitivity;
 
-        const endpoint = `${checkEndpointBase}/${generateScanId()}/check`;
-        const response = await fetchImpl(endpoint, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            accept: "application/json",
-            authorization: `Bearer ${auth.token}`,
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
+          const endpoint = `${checkEndpointBase}/${generateScanId()}/check`;
+          const response = await fetchImpl(endpoint, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+              authorization: `Bearer ${auth.token}`,
+            },
+            body: JSON.stringify(requestBody),
+            signal,
+          });
+
+          if (!response.ok) {
+            // Don't leak the response stream on the error path.
+            await response.body?.cancel();
+            const note = response.status === 429 ? " — rate limited" : "";
+            return unavailableDetection(
+              self,
+              `Copyleaks API error (${response.status})${note}`,
+            );
+          }
+
+          const data = await response.json();
+          const result = normalizeCopyleaks(data, text);
+          if (!result) {
+            return unavailableDetection(
+              self,
+              "unexpected Copyleaks response shape",
+            );
+          }
+          return detectionFromResult(self, result);
         });
-
-        if (!response.ok) {
-          // Don't leak the response stream on the error path.
-          await response.body?.cancel();
-          const note = response.status === 429 ? " — rate limited" : "";
-          return unavailableDetection(
-            self,
-            `Copyleaks API error (${response.status})${note}`,
-          );
-        }
-
-        const data = await response.json();
-        const result = normalizeCopyleaks(data, text);
-        if (!result) {
-          return unavailableDetection(
-            self,
-            "unexpected Copyleaks response shape",
-          );
-        }
-        return detectionFromResult(self, result);
       } catch (err) {
         return unavailableDetection(self, describeError(err, timeoutMs));
-      } finally {
-        clearTimeout(timer);
       }
     },
   };
@@ -297,7 +291,7 @@ function parseSensitivity(value: string | undefined): number | null {
 }
 
 function describeError(err: unknown, timeoutMs: number): string {
-  if (err instanceof DOMException && err.name === "AbortError") {
+  if (isTimeoutError(err)) {
     return `Copyleaks request timed out after ${timeoutMs}ms`;
   }
   const reason = err instanceof Error ? err.message : "request failed";
