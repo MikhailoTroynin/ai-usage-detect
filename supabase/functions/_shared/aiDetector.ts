@@ -63,7 +63,10 @@ const STOCK_PHRASES = [
   "paradigm shift",
 ];
 
-function scoreToRisk(score: number): DetectionRisk {
+// Shared risk banding for every detector (heuristic and real providers alike),
+// re-exported from _shared/detectors/types.ts so provider adapters map their
+// normalized 0-100 scores the same way this heuristic does.
+export function scoreToRisk(score: number): DetectionRisk {
   if (score >= 66) return "red";
   if (score >= 35) return "amber";
   return "green";
