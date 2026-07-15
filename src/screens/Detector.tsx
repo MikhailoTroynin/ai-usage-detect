@@ -51,6 +51,14 @@ export function Detector({ go }: ScreenProps) {
     score: s.score,
     alts: null,
   })) ?? [];
+  // The backend reports where the scores came from: real detector providers or
+  // the heuristic fallback (`source`). Label the engine accordingly instead of
+  // hardcoding "Heuristic", and flag heuristic results as approximate. A missing
+  // source (older server) is treated as heuristic — that's all it could run.
+  const approximate = result ? result.source !== 'providers' : false;
+  const engine = approximate
+    ? 'Heuristic'
+    : result?.providers?.filter(p => p.available).map(p => p.name).join(' + ') || 'AI detectors';
   const resultColor = result?.risk === 'red' ? theme.riskRed : result?.risk === 'amber' ? theme.riskAmber : theme.riskGreen;
   const resultBg = result?.risk === 'red' ? theme.riskRedBg : result?.risk === 'amber' ? theme.riskAmberBg : theme.riskGreenBg;
   const resultTitle = result?.risk === 'red' ? 'Heavily AI-detectable' : result?.risk === 'amber' ? 'Mixed AI signal' : 'Mostly human-sounding';
@@ -83,7 +91,7 @@ export function Detector({ go }: ScreenProps) {
         {phase === 'scanning' && (
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 11, paddingVertical: 16 }}>
             <ActivityIndicator size="small" color={theme.accent} />
-            <Text style={{ color: theme.textMuted, fontSize: 15, fontWeight: '600' }}>Running heuristic detector…</Text>
+            <Text style={{ color: theme.textMuted, fontSize: 15, fontWeight: '600' }}>Scanning for AI…</Text>
           </View>
         )}
 
@@ -103,7 +111,7 @@ export function Detector({ go }: ScreenProps) {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text, letterSpacing: -0.3 }}>{resultTitle}</Text>
                   <Text style={{ fontSize: 13.5, color: theme.textMuted, marginTop: 5, lineHeight: 19 }}>
-                    Heuristic scan flagged {flagged} of {result.sentences.length} sentence{result.sentences.length === 1 ? '' : 's'} as red or amber.
+                    {engine} scan flagged {flagged} of {result.sentences.length} sentence{result.sentences.length === 1 ? '' : 's'} as red or amber.
                   </Text>
                 </View>
               </View>
@@ -112,7 +120,7 @@ export function Detector({ go }: ScreenProps) {
                   ['Overall score', `${score}%`],
                   ['Sentences', String(result.sentences.length)],
                   ['Flagged', String(flagged)],
-                  ['Engine', 'Heuristic'],
+                  ['Engine', engine],
                 ].map(([label, value]) => (
                   <View key={label} style={{ flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.surface, borderRadius: 10, padding: 10 }}>
                     <Text style={{ fontSize: 12.5, fontWeight: '600', color: theme.textMuted }}>{label}</Text>
@@ -120,6 +128,11 @@ export function Detector({ go }: ScreenProps) {
                   </View>
                 ))}
               </View>
+              {approximate && (
+                <Text style={{ fontSize: 11.5, color: theme.textMuted, lineHeight: 16, marginTop: 10 }}>
+                  Approximate — scored by our built-in heuristic because no external detector responded.
+                </Text>
+              )}
             </Card>
 
             <Card pad={16}>
