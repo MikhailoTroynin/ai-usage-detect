@@ -49,7 +49,9 @@ export interface MultiDetectorDeps {
 }
 
 // Default real-provider set, in priority order (item 5: "від основного — GPTZero").
-const DEFAULT_PROVIDERS: AiDetectorProvider[] = [
+// Exported so the caching layer (item 6) can derive the same active-provider
+// signature for its cache key without re-declaring the list here.
+export const DEFAULT_PROVIDERS: AiDetectorProvider[] = [
   gptzeroProvider,
   originalityProvider,
   copyleaksProvider,
