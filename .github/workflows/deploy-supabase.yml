@@ -13,6 +13,12 @@ name: Deploy Supabase Functions
 #   SUPABASE_ACCESS_TOKEN  — Personal access token із supabase.com (Account -> Access Tokens)
 #   SUPABASE_PROJECT_ID    — project-ref вашого проєкту (з адреси дашборду)
 #   ANTHROPIC_API_KEY      — НОВИЙ, відкликаний-і-перевиданий ключ з console.anthropic.com
+#
+# Опційні GitHub Secrets — реальні AI-детектори для /detect (без них /detect
+# працює на евристиці, деплой НЕ падає). Додавайте лише ті, що маєте:
+#   GPTZERO_API_KEY (+ GPTZERO_VERSION)                — GPTZero
+#   ORIGINALITY_API_KEY (+ ORIGINALITY_MODEL_VERSION)  — Originality.ai
+#   COPYLEAKS_API_KEY + COPYLEAKS_EMAIL (+ COPYLEAKS_SENSITIVITY) — Copyleaks
 
 on:
   workflow_dispatch: {}
@@ -51,6 +57,37 @@ jobs:
 
       - name: Set ANTHROPIC_API_KEY secret (server-side only)
         run: supabase secrets set ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" --project-ref "${PROJECT_ID}"
+
+      # Optional AI-detector secrets (DETECTOR-INTEGRATION-PLAN.md item 10). All
+      # optional: each provider turns on only when its key is present, and /detect
+      # falls back to the heuristic otherwise. Unset GitHub secrets are empty here,
+      # so set_secret skips them — the deploy never fails for a missing detector key.
+      - name: Set optional AI-detector secrets (server-side only)
+        env:
+          GPTZERO_API_KEY: ${{ secrets.GPTZERO_API_KEY }}
+          GPTZERO_VERSION: ${{ secrets.GPTZERO_VERSION }}
+          ORIGINALITY_API_KEY: ${{ secrets.ORIGINALITY_API_KEY }}
+          ORIGINALITY_MODEL_VERSION: ${{ secrets.ORIGINALITY_MODEL_VERSION }}
+          COPYLEAKS_API_KEY: ${{ secrets.COPYLEAKS_API_KEY }}
+          COPYLEAKS_EMAIL: ${{ secrets.COPYLEAKS_EMAIL }}
+          COPYLEAKS_SENSITIVITY: ${{ secrets.COPYLEAKS_SENSITIVITY }}
+        run: |
+          set_secret() {
+            local name="$1" value="$2"
+            if [ -n "${value}" ]; then
+              echo ">> setting optional secret ${name}"
+              supabase secrets set "${name}=${value}" --project-ref "${PROJECT_ID}"
+            else
+              echo "-- skipping ${name} (not set)"
+            fi
+          }
+          set_secret GPTZERO_API_KEY "${GPTZERO_API_KEY}"
+          set_secret GPTZERO_VERSION "${GPTZERO_VERSION}"
+          set_secret ORIGINALITY_API_KEY "${ORIGINALITY_API_KEY}"
+          set_secret ORIGINALITY_MODEL_VERSION "${ORIGINALITY_MODEL_VERSION}"
+          set_secret COPYLEAKS_API_KEY "${COPYLEAKS_API_KEY}"
+          set_secret COPYLEAKS_EMAIL "${COPYLEAKS_EMAIL}"
+          set_secret COPYLEAKS_SENSITIVITY "${COPYLEAKS_SENSITIVITY}"
 
       - name: Deploy Edge Functions
         run: |

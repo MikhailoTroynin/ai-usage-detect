@@ -17,8 +17,7 @@ Implemented:
 
 Not implemented (out of scope for this pass — see `design-handoff/uploads/BRD-AI-detect.txt` for the full spec):
 - Real humanization pipeline (LLM rewrite via OpenRouter/Claude/Llama, regex post-processing, multi-model chaining)
-- Real AI detection (GPTZero/Turnitin/Copyleaks/Originality.ai integrations)
-- Auth, Supabase/Postgres backend, credits/RLS logic
+- Credits/RLS logic
 - Stripe billing + Stripe Sync Engine
 
 ### Getting started
@@ -32,7 +31,7 @@ npm run start   # then press i / a / w, or scan the QR code with Expo Go
 
 `POST /humanize` and `POST /alternatives` are minimal Supabase Edge Functions (Deno/TS) that call the Anthropic API. They keep `ANTHROPIC_API_KEY` server-side only — it is never bundled into the Expo client.
 
-`POST /detect` scores text with a heuristic AI-detector (stock phrases, repeated sentence openers, low lexical variety) — no external API or key required. It returns sentence-level `red`/`amber`/`green` risk plus an overall score, behind an `AiDetector` interface designed to be swapped for a real GPTZero/Turnitin integration later without changing callers.
+`POST /detect` aggregates real AI detectors (GPTZero → Originality.ai → Copyleaks) behind a `MultiDetector`, returning an overall score, sentence-level `red`/`amber`/`green` risk, and a per-provider breakdown. Each provider turns on only when its server-side key is present; when none are configured it falls back to the built-in heuristic (stock phrases, repeated sentence openers, low lexical variety) and marks the response `source: "heuristic"` so the client can flag the score as approximate. Turnitin has no public self-serve API and is reported as `N/A`. See `DETECTOR-INTEGRATION-PLAN.md`.
 
 Client configuration (Expo public variables only):
 
@@ -45,6 +44,18 @@ EXPO_PUBLIC_API_TIMEOUT_MS=45000
 ```
 
 Only `EXPO_PUBLIC_*` values are bundled into the Expo client, so never place provider API keys there. Keep secrets in Supabase Edge Function environment variables.
+
+#### Server-side detector secrets (optional)
+
+These enable the real AI detectors for `POST /detect`. They are **server-only secrets** — set them as Supabase Edge Function environment variables (`supabase secrets set`), never as `EXPO_PUBLIC_*` (those ship in the client bundle). All are optional: set only the providers you have, and `/detect` falls back to the heuristic for the rest. A missing key is never fatal — the deploy still succeeds.
+
+| Variable | Provider | Required to enable | Notes |
+| --- | --- | --- | --- |
+| `GPTZERO_API_KEY` | GPTZero (primary) | yes | `GPTZERO_VERSION` optionally pins the model |
+| `ORIGINALITY_API_KEY` | Originality.ai | yes | `ORIGINALITY_MODEL_VERSION` optionally pins the AI model |
+| `COPYLEAKS_API_KEY` + `COPYLEAKS_EMAIL` | Copyleaks | both | `COPYLEAKS_SENSITIVITY` (1–3) optionally pins strictness |
+
+The values live only in `supabase/.env.local` (gitignored) for local/CLI deploys, or in GitHub repository secrets for the Actions workflow — `supabase/deploy.sh` and `.github/workflows/deploy-supabase.yml` push whichever ones are present and skip the rest. Turnitin is not listed: it has no public self-serve API, so the client shows it as `N/A` rather than a fabricated score.
 
 Local development:
 

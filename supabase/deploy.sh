@@ -3,7 +3,12 @@
 # Step 12 — real Supabase deploy for the AI Humanizer Edge Functions.
 #
 # Turns the manual README "Deploy" steps into one idempotent command:
-#   link  ->  set ANTHROPIC_API_KEY secret  ->  deploy humanize/alternatives/detect
+#   link  ->  set secrets  ->  deploy humanize/alternatives/detect
+#
+# Sets ANTHROPIC_API_KEY (required) plus any AI-detector keys that .env.local
+# happens to define (GPTZERO_/ORIGINALITY_/COPYLEAKS_*, all optional — see
+# DETECTOR-INTEGRATION-PLAN.md item 10). Missing detector keys are skipped, not
+# fatal: /detect just falls back to the heuristic for the providers you omit.
 #
 # This script must be run LOCALLY (or in CI) by someone who owns the target
 # Supabase project. It cannot run from the ephemeral build container: it needs
@@ -61,6 +66,23 @@ supabase link --project-ref "${PROJECT_REF}"
 
 echo ">> setting ANTHROPIC_API_KEY secret (server-side only)"
 supabase secrets set "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+
+# Optional AI-detector secrets (DETECTOR-INTEGRATION-PLAN.md item 10). These come
+# from the sourced .env.local; each provider turns on only when its key is set,
+# so we push just the ones actually defined and never fail the deploy for a
+# missing one.
+OPTIONAL_SECRETS=(
+  GPTZERO_API_KEY GPTZERO_VERSION
+  ORIGINALITY_API_KEY ORIGINALITY_MODEL_VERSION
+  COPYLEAKS_API_KEY COPYLEAKS_EMAIL COPYLEAKS_SENSITIVITY
+)
+for name in "${OPTIONAL_SECRETS[@]}"; do
+  value="${!name:-}"
+  if [ -n "${value}" ]; then
+    echo ">> setting optional secret ${name} (server-side only)"
+    supabase secrets set "${name}=${value}"
+  fi
+done
 
 for fn in "${FUNCTIONS[@]}"; do
   echo ">> deploying function: ${fn}"
