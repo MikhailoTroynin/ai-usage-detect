@@ -10,7 +10,7 @@ import { Button } from '../components/Button';
 import { Sheet } from '../components/Sheet';
 import { useTheme } from '../theme/ThemeContext';
 import { DETECTORS, ResultSentence, RESULT_SENTENCES, Risk } from '../data/content';
-import { HumanizeResult, ScreenProps } from '../navigation/types';
+import { HumanizeDetector, HumanizeResult, ScreenProps } from '../navigation/types';
 import { alternatives, ApiError } from '../lib/api';
 
 export function SentenceSpan({ s, onPress }: { s: ResultSentence | { id: string; text: string; risk: Risk; score: number; alts?: null }; onPress?: () => void }) {
@@ -54,6 +54,13 @@ export function Result({ go, result }: ResultProps) {
   const flagged = sentences.filter(s => s.risk !== 'green').length;
   const overall = sentences.length > 0 ? Math.round(sentences.reduce((a, s) => a + s.score, 0) / sentences.length) : 0;
   const before = result?.beforeScore ?? 94;
+
+  // Real per-provider before/after scores from the live run; the static DETECTORS
+  // mock is only the demo fallback for the Home → History preview (no live run).
+  const detectorRows: HumanizeDetector[] = result
+    ? result.detectors
+    : DETECTORS.map(d => ({ id: d.id, name: d.name, before: d.before, after: d.after, available: true }));
+  const riskColor = (score: number) => RISK[score >= 66 ? 'red' : score >= 35 ? 'amber' : 'green'].c;
 
   const openSentence = async (s: ResultSentence) => {
     setActive(s);
@@ -102,10 +109,22 @@ export function Result({ go, result }: ResultProps) {
             </View>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
-            {DETECTORS.map(d => (
+            {detectorRows.map(d => (
               <View key={d.id} style={{ flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.surface2, borderRadius: 10, padding: 10 }}>
                 <Text style={{ fontSize: 12.5, fontWeight: '600', color: theme.textMuted }}>{d.name}</Text>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: theme.riskGreen }}>{d.after}%</Text>
+                {d.available && d.after !== null ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    {d.before !== null && (
+                      <>
+                        <Text style={{ fontSize: 12.5, fontWeight: '700', color: theme.textFaint }}>{d.before}%</Text>
+                        <Icon name="arrowR" size={12} stroke={theme.textFaint} />
+                      </>
+                    )}
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: riskColor(d.after) }}>{d.after}%</Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: theme.textFaint }}>N/A</Text>
+                )}
               </View>
             ))}
           </View>

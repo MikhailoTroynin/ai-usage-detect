@@ -16,12 +16,23 @@ export const TONES: string[] = [
 
 export const STYLES: string[] = ['Marketing', 'Academic', 'Journalistic', 'Creative', 'Technical'];
 
+// Demo-only fallback for the Result → "Detectors" card. Used when Result is
+// opened without a live humanize run (the Home → History preview), where there
+// are no real per-provider scores to show. A real run renders the backend
+// `providers[]` instead (see HumanizeResult.detectors).
 export interface Detector { id: string; name: string; before: number; after: number; }
 export const DETECTORS: Detector[] = [
   { id: 'gptzero',     name: 'GPTZero',        before: 96, after: 4 },
   { id: 'turnitin',    name: 'Turnitin',       before: 88, after: 9 },
   { id: 'copyleaks',   name: 'Copyleaks',      before: 92, after: 7 },
   { id: 'originality', name: 'Originality.ai', before: 99, after: 11 },
+];
+
+// Well-known detectors we intentionally can't score live — Turnitin has no
+// self-serve API (DETECTOR-INTEGRATION-PLAN.md). Surfaced on the Result card as
+// an honest "N/A" so we neither drop the brand nor invent a number for it.
+export const UNAVAILABLE_DETECTORS: { id: string; name: string }[] = [
+  { id: 'turnitin', name: 'Turnitin' },
 ];
 
 export const SAMPLE_INPUT =

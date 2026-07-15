@@ -3,9 +3,9 @@ import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from './theme/ThemeContext';
 import { TabBar } from './components/TabBar';
-import { ScreenName, EditorState, HumanizeResult, HumanizeStage } from './navigation/types';
-import { SAMPLE_INPUT } from './data/content';
-import { ApiError, detect, humanize } from './lib/api';
+import { ScreenName, EditorState, HumanizeDetector, HumanizeResult, HumanizeStage } from './navigation/types';
+import { SAMPLE_INPUT, UNAVAILABLE_DETECTORS } from './data/content';
+import { ApiError, DetectResult, detect, humanize } from './lib/api';
 
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
@@ -16,6 +16,45 @@ import { Detector } from './screens/Detector';
 import { Metrics } from './screens/Metrics';
 import { Pricing } from './screens/Pricing';
 import { Profile } from './screens/Profile';
+
+// Merge the per-provider rows from the original ("before") and humanized
+// ("after") /detect calls into one list for the Result → Detectors card. A
+// provider only contributes a number for a scan where it was actually available;
+// otherwise that side is null and the card shows "N/A". Known brands with no live
+// API (Turnitin) are appended as permanent N/A rows so we surface them honestly
+// instead of dropping them or faking a score.
+function buildDetectors(before: DetectResult | null, after: DetectResult | null): HumanizeDetector[] {
+  const beforeById = new Map((before?.providers ?? []).map(p => [p.id, p]));
+  const afterById = new Map((after?.providers ?? []).map(p => [p.id, p]));
+
+  // Preserve backend order, prioritizing the humanized ("after") scan since that
+  // is the one the card is really about; add any provider only seen in "before".
+  const order: string[] = [];
+  const seen = new Set<string>();
+  for (const p of [...(after?.providers ?? []), ...(before?.providers ?? [])]) {
+    if (!seen.has(p.id)) { seen.add(p.id); order.push(p.id); }
+  }
+
+  const detectors: HumanizeDetector[] = order.map(id => {
+    const a = afterById.get(id);
+    const b = beforeById.get(id);
+    const meta = a ?? b!; // id came from one of the two maps, so at least one is set
+    return {
+      id,
+      name: meta.name,
+      before: b?.available ? b.score : null,
+      after: a?.available ? a.score : null,
+      available: Boolean(a?.available || b?.available),
+    };
+  });
+
+  for (const brand of UNAVAILABLE_DETECTORS) {
+    if (!seen.has(brand.id)) {
+      detectors.push({ id: brand.id, name: brand.name, before: null, after: null, available: false });
+    }
+  }
+  return detectors;
+}
 
 const NO_CHROME: ScreenName[] = ['onboarding', 'processing'];
 const TAB_MAP: Partial<Record<ScreenName, ScreenName>> = {
@@ -50,7 +89,13 @@ export function RootNavigator() {
         const sentences = after && after.sentences.length > 0
           ? after.sentences.map((s, i) => ({ id: `s${i}`, text: s.text, risk: s.risk, score: s.score, alts: null }))
           : [{ id: 's0', text, risk: after?.risk ?? 'green', score: after?.overallScore ?? 0, alts: null }];
-        setResult({ text, beforeScore: before?.overallScore ?? 0, afterScore: after?.overallScore ?? 0, sentences });
+        setResult({
+          text,
+          beforeScore: before?.overallScore ?? 0,
+          afterScore: after?.overallScore ?? 0,
+          sentences,
+          detectors: buildDetectors(before, after),
+        });
         setHumanizeStage('done');
       })
       .catch(err => {
