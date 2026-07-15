@@ -1,7 +1,16 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { heuristicDetector } from "../_shared/aiDetector.ts";
+import { multiDetector } from "../_shared/detectors/index.ts";
+import { createCachingMultiDetector } from "../_shared/detectors/cache.ts";
 
 const MAX_TEXT_LENGTH = 20000;
+
+// The endpoint queries the real detectors through the MultiDetector aggregator
+// (DETECTOR-INTEGRATION-PLAN.md item 5) instead of the bare heuristic. Real
+// detectors are paid per request, so we wrap it in the text-hash cache (item 6)
+// so identical, back-to-back requests on a warm instance are served from memory
+// rather than re-billing every provider. With no provider keys configured the
+// aggregator transparently falls back to the heuristic (`source: "heuristic"`).
+const detector = createCachingMultiDetector(multiDetector);
 
 // Sign-in is temporarily disabled (free Supabase tier can't be configured for
 // email-OTP): this endpoint is open, no requireUser() gate for now. See
@@ -31,7 +40,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const result = await heuristicDetector.detect(text);
+    const result = await detector.detect(text);
     return jsonResponse(result);
   } catch (err) {
     console.error(err);
